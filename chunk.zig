@@ -3,6 +3,12 @@ const AC = std.mem.Alloc;
 
 pub const OpCode = enum(u8) {
     OP_RETURN,
+    OP_CONSTANT,
+};
+
+pub const OpData = union(OpCode) {
+    OP_RETURN: void,
+    OP_CONSTANT: u8,
 };
 
 pub const Chunk = struct {
@@ -23,6 +29,8 @@ pub const Chunk = struct {
         ch.ins.deinit();
         ch.lines.deinit();
     }
+
+    pub fn run(ch: *Chunk) void {}
 };
 
 pub fn do_thing() void {
