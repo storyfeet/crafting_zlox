@@ -1,6 +1,8 @@
 const std = @import("std");
 const AC = std.mem.Alloc;
 
+pub const Value = u16;
+
 pub const OpCode = enum(u8) {
     OP_RETURN,
     OP_CONSTANT,
@@ -14,14 +16,26 @@ pub const OpData = union(OpCode) {
 pub const Chunk = struct {
     consts: std.ArrayList(u8),
     ins: std.ArrayList(u8),
-    lines: std.ArrayList(u8),
+    lines: std.ArrayList(Value),
 
-    pub fn init(alloc: *std.mem.Alloc) Chunk {
+    pub fn init(alloc: *std.mem.Allocator) Chunk {
         return Chunk{
             .consts = std.ArrayList(u8).init(alloc),
             .ins = std.ArrayList(u8).init(alloc),
-            .lines = std.ArrayList(u8).init(alloc),
+            .lines = std.ArrayList(Value).init(alloc),
         };
+    }
+
+    pub fn addOp(ch: *Chunk, od: OpData) !void {
+        switch (od) {
+            OpData.OP_RETURN => try ch.ins.append(@enumToInt(od)),
+            OpData.OP_CONSTANT => |c| {
+                var pos: u8 = @intCast(u8, ch.consts.items.len);
+                try ch.consts.append(c);
+                try ch.ins.append(@enumToInt(od));
+                try ch.ins.append(pos);
+            },
+        }
     }
 
     pub fn deinit(ch: Chunk) void {
@@ -50,6 +64,10 @@ fn dissasemble_instruction(codes: []const u8, offset: usize) usize {
         OpCode.OP_RETURN => {
             std.debug.print("OP_RETURN\n", .{});
             return offset + 1;
+        },
+        OpCode.OP_CONSTANT => {
+            std.debug.print("OP_CONSTANT\n", .{});
+            return offset + 2;
         },
     }
 }

@@ -1,8 +1,25 @@
 const std = @import("std");
 const chunk = @import("chunk.zig");
 const OpCode = chunk.OpCode;
+const OpData = chunk.OpData;
+const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
-pub fn main() !void {}
+pub fn main() !void {
+    var gpa = GPAlloc{};
+    var chk = chunk.Chunk.init(&gpa.allocator);
+    try chk.addOp(OpData{ .OP_CONSTANT = 3 });
+    try chk.addOp(OpData{ .OP_CONSTANT = 4 });
+    try chk.addOp(OpData.OP_RETURN);
+
+    var vm: VM = VM.init(&chk, null);
+    var res = vm.run();
+
+    switch (res) {
+        InterpretResult.OK => std.debug.print("RUN OK\n", .{}),
+        InterpretResult.COMPILE_ERROR => std.debug.print("COMPILE ERROR\n", .{}),
+        InterpretResult.RUN_ERROR => std.debug.print("RUN ERROR\n", .{}),
+    }
+}
 
 pub const InterpretResult = enum {
     OK,
@@ -11,18 +28,28 @@ pub const InterpretResult = enum {
 };
 
 pub const VM = struct {
-    ip: *u8,
+    ip: usize,
     chunk: *chunk.Chunk,
-    pub fn init() VM {}
+    pub fn init(ch: *chunk.Chunk, ip: ?usize) VM {
+        return VM{
+            .chunk = ch,
+            .ip = ip orelse 0,
+        };
+    }
 
-    pub fn interpret(ch: *chunk.Chunk) InterpretResult {}
-
-    pub fn run(v: VM) InterpretResult {
+    pub fn run(
+        v: *VM,
+    ) InterpretResult {
         while (true) {
-            op = @intToEnum(v.it.*);
-            ip += 1;
+            var op = @intToEnum(OpCode, v.chunk.ins.items[v.ip]);
+            v.ip += 1;
             switch (op) {
                 OpCode.OP_RETURN => return InterpretResult.OK,
+                OpCode.OP_CONSTANT => {
+                    var cid = v.chunk.ins.items[v.ip];
+                    v.ip += 1;
+                    std.debug.print("CONSTANT = {}\n", .{v.chunk.consts.items[cid]});
+                },
             }
         }
     }
