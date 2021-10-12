@@ -11,8 +11,8 @@ pub fn main() !void {
     chunk.do_thing();
     var ar = std.ArrayList(u8).init(&gpa.allocator);
     defer ar.deinit();
-    try ar.append(@bitCast(u8, OpCode.OP_RETURN));
-    try ar.append(@bitCast(u8, OpCode.OP_RETURN));
+    try ar.append(@bitCast(u8, OpCode.RETURN));
+    try ar.append(@bitCast(u8, OpCode.RETURN));
 
     chunk.dissasemble(ar.items);
 }

@@ -1,28 +1,36 @@
 const std = @import("std");
 const chunk = @import("chunk.zig");
+const conf = @import("config.zig");
 const OpCode = chunk.OpCode;
 const OpData = chunk.OpData;
+const Value = chunk.Value;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn main() !void {
     var gpa = GPAlloc{};
     var chk = chunk.Chunk.init(&gpa.allocator);
-    try chk.addOp(OpData{ .OP_CONSTANT = 3 });
-    try chk.addOp(OpData{ .OP_CONSTANT = 4 });
-    try chk.addOp(OpData.OP_RETURN);
+    defer chk.deinit();
+    try chk.addOp(OpData{ .CONSTANT = 3 });
+    try chk.addOp(OpData{ .CONSTANT = 4 });
+    try chk.addOp(OpData.NEGATE);
+    try chk.addOp(OpData.RETURN);
 
-    var vm: VM = VM.init(&chk, null);
+    var vm: VM = VM.init(&chk, &gpa.allocator);
+    defer vm.deinit();
     var res = vm.run();
 
-    switch (res) {
-        InterpretResult.OK => std.debug.print("RUN OK\n", .{}),
-        InterpretResult.COMPILE_ERROR => std.debug.print("COMPILE ERROR\n", .{}),
-        InterpretResult.RUN_ERROR => std.debug.print("RUN ERROR\n", .{}),
+    if (res) |_| {
+        std.debug.print("RUN OK\n", .{});
+    } else |err| {
+        switch (err) {
+            error.COMPILE_ERROR => std.debug.print("COMPILE ERROR {}\n", .{err}),
+            error.RUN_ERROR => std.debug.print("RUN ERROR {}\n", .{err}),
+        }
+        return;
     }
 }
 
-pub const InterpretResult = enum {
-    OK,
+pub const VMError = error{
     COMPILE_ERROR,
     RUN_ERROR,
 };
@@ -30,33 +38,65 @@ pub const InterpretResult = enum {
 pub const VM = struct {
     ip: usize,
     chunk: *chunk.Chunk,
-    pub fn init(ch: *chunk.Chunk, ip: ?usize) VM {
+    stack: std.ArrayList(Value),
+    pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
         return VM{
             .chunk = ch,
-            .ip = ip orelse 0,
+            .ip = 0,
+            .stack = std.ArrayList(Value).init(alloc),
         };
     }
 
     pub fn run(
-        v: *VM,
-    ) InterpretResult {
+        self: *VM,
+    ) VMError!void {
         while (true) {
-            var op = @intToEnum(OpCode, v.chunk.ins.items[v.ip]);
-            v.ip += 1;
-            switch (op) {
-                OpCode.OP_RETURN => return InterpretResult.OK,
-                OpCode.OP_CONSTANT => {
-                    var cid = v.chunk.ins.items[v.ip];
-                    v.ip += 1;
-                    std.debug.print("CONSTANT = {}\n", .{v.chunk.consts.items[cid]});
+            switch (self.readInstruction()) {
+                OpCode.RETURN => {
+                    var cval = self.readStack();
+                    std.debug.print("RETURN = {}\n", .{cval});
+                    return;
+                },
+
+                OpCode.CONSTANT => {
+                    var cval = self.readConst();
+                    if (conf.DEBUG_TRACE_EXECUTION) {
+                        std.debug.print("CONSTANT = {}\n", .{cval});
+                    }
+                    self.stack.append(cval) catch |err| return error.RUN_ERROR;
+                },
+                OpCode.NEGATE => {
+                    var cval = self.readStack();
+                    var neg = -cval;
+                    if (conf.DEBUG_TRACE_EXECUTION) {
+                        std.debug.print("NEGATE {} => {}\n", .{ cval, neg });
+                    }
+                    self.stack.append(neg) catch unreachable;
                 },
             }
         }
     }
 
-    fn readByte(vm: *VM) !OpCode {
-        b = ip;
+    fn readInstruction(self: *VM) OpCode {
+        var op = @intToEnum(OpCode, self.chunk.ins.items[self.ip]);
+        self.ip += 1;
+        return op;
     }
 
-    pub fn deinit() void {}
+    fn readConst(self: *VM) Value {
+        var pos = @intCast(usize, self.chunk.ins.items[self.ip]);
+        self.ip += 1;
+        return self.chunk.consts.items[pos];
+    }
+
+    fn readStack(self: *VM) Value {
+        const newlen = self.stack.items.len - 1;
+        var res = self.stack.items[newlen];
+        self.stack.items.len -= 1;
+        return res;
+    }
+
+    pub fn deinit(self: *VM) void {
+        self.stack.deinit();
+    }
 };
