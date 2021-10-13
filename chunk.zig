@@ -7,12 +7,20 @@ pub const OpCode = enum(u8) {
     RETURN,
     CONSTANT,
     NEGATE,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
 };
 
 pub const OpData = union(OpCode) {
     RETURN: void,
     CONSTANT: Value,
     NEGATE: void,
+    ADD: void,
+    SUB: void,
+    MUL: void,
+    DIV: void,
 };
 
 pub const Chunk = struct {
@@ -30,13 +38,13 @@ pub const Chunk = struct {
 
     pub fn addOp(ch: *Chunk, od: OpData) !void {
         switch (od) {
-            OpData.RETURN, OpData.NEGATE => try ch.ins.append(@enumToInt(od)),
             OpData.CONSTANT => |c| {
                 var pos: u8 = @intCast(u8, ch.consts.items.len);
                 try ch.consts.append(c);
                 try ch.ins.append(@enumToInt(od));
                 try ch.ins.append(pos);
             },
+            else => try ch.ins.append(@enumToInt(od)),
         }
     }
 

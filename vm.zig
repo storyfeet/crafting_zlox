@@ -13,6 +13,9 @@ pub fn main() !void {
     try chk.addOp(OpData{ .CONSTANT = 3 });
     try chk.addOp(OpData{ .CONSTANT = 4 });
     try chk.addOp(OpData.NEGATE);
+    try chk.addOp(OpData.ADD);
+    try chk.addOp(OpData{ .CONSTANT = 7 });
+    try chk.addOp(OpData.DIV);
     try chk.addOp(OpData.RETURN);
 
     var vm: VM = VM.init(&chk, &gpa.allocator);
@@ -25,6 +28,7 @@ pub fn main() !void {
         switch (err) {
             error.COMPILE_ERROR => std.debug.print("COMPILE ERROR {}\n", .{err}),
             error.RUN_ERROR => std.debug.print("RUN ERROR {}\n", .{err}),
+            error.OutOfMemory => std.debug.print("Out of Memory {}\n", .{err}),
         }
         return;
     }
@@ -33,6 +37,7 @@ pub fn main() !void {
 pub const VMError = error{
     COMPILE_ERROR,
     RUN_ERROR,
+    OutOfMemory,
 };
 
 pub const VM = struct {
@@ -73,6 +78,18 @@ pub const VM = struct {
                     }
                     self.stack.append(neg) catch unreachable;
                 },
+                OpCode.ADD => {
+                    try self.stack.append(try self.binaryOp(OpCode.ADD));
+                },
+                OpCode.DIV => {
+                    try self.stack.append(try self.binaryOp(OpCode.DIV));
+                },
+                OpCode.MUL => {
+                    try self.stack.append(try self.binaryOp(OpCode.MUL));
+                },
+                OpCode.SUB => {
+                    try self.stack.append(try self.binaryOp(OpCode.SUB));
+                },
             }
         }
     }
@@ -98,5 +115,21 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM) void {
         self.stack.deinit();
+    }
+
+    fn binaryOp(self: *VM, op: comptime OpCode) !Value {
+        const b = self.readStack();
+        const a = self.readStack();
+        const res = switch (op) {
+            OpCode.ADD => a + b,
+            OpCode.DIV => a / b,
+            OpCode.MUL => a * b,
+            OpCode.SUB => a - b,
+            else => unreachable,
+        };
+        if (conf.DEBUG_TRACE_EXECUTION) {
+            std.debug.print("BIN_OP {} __ {} => {}\n", .{ a, b, res });
+        }
+        return res;
     }
 };
