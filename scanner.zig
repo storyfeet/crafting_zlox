@@ -27,6 +27,7 @@ pub const Token = struct {
 
 const ScanError = error{
     UnexpectedChar,
+    UnterminatedString,
 };
 
 pub const Tokenizer = struct {
@@ -63,6 +64,7 @@ pub const Tokenizer = struct {
             '=' => return self.makeToken(if (self.match("=")) TokenType.EQUAL_EQUAL else TokenType.EQUAL),
             '>' => return self.makeToken(if (self.match("=")) TokenType.GREATER_EQUAL else TokenType.GREATER),
             '<' => return self.makeToken(if (self.match("=")) TokenType.LESS_EQUAL else TokenType.LESS),
+            '"' => return try self.string(),
             else => return error.UnexpectedChar,
         }
     }
@@ -111,11 +113,30 @@ pub const Tokenizer = struct {
             }
         }
     }
+
+    fn string(self: *@This()) !Token {
+        while (true) {
+            var c = self.uts.peek(1);
+            if (c.len == 0) return error.UnterminatedString;
+            if (std.mem.eql(u8, c, "\"")) {
+                _ = self.uts.nextCodepoint();
+                return self.makeToken(TokenType.STRING);
+            }
+            if (std.mem.eql(u8, c, "\n")) {
+                self.line += 1;
+            }
+            _ = self.uts.nextCodepoint();
+        }
+    }
 };
 
 test "tokenizer tokens something" {
-    var sc = Tokenizer.init("( !=//hello\n ) thing");
+    var base = "( !=//你好hello\n\"f你\" ) thing";
+    var sc = Tokenizer.init(base);
     try expect((try sc.nextToken()).kind == TokenType.LEFT_PAREN);
     try expect((try sc.nextToken()).kind == TokenType.BANG_EQUAL);
+    var st = try sc.nextToken();
+    try expect(st.kind == TokenType.STRING);
+    try expect(std.mem.eql(u8, base[st.start..st.end], "\"f你\""));
     try expect((try sc.nextToken()).kind == TokenType.RIGHT_PAREN);
 }
