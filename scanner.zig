@@ -166,12 +166,33 @@ pub const Tokenizer = struct {
             if (pk.len == 0) return self.makeToken(TokenType.IDENT);
             const cp = std.unicode.utf8Decode(pk) catch return error.NonUnicode;
             if (isSymSpace(cp)) {
-                return self.makeToken(TokenType.IDENT);
+                return self.makeToken(identTokenType(self.uts.bytes[self.start..self.uts.i]));
             }
             _ = self.uts.nextCodepoint();
         }
     }
 };
+
+fn identTokenType(s: []const u8) TokenType {
+    if (std.mem.eql(u8, "and", s)) return TokenType.AND;
+    if (std.mem.eql(u8, "class", s)) return TokenType.CLASS;
+    if (std.mem.eql(u8, "else", s)) return TokenType.ELSE;
+    if (std.mem.eql(u8, "false", s)) return TokenType.FALSE;
+    if (std.mem.eql(u8, "for", s)) return TokenType.FOR;
+    if (std.mem.eql(u8, "fun", s)) return TokenType.FUN;
+    if (std.mem.eql(u8, "if", s)) return TokenType.IF;
+    if (std.mem.eql(u8, "nil", s)) return TokenType.NIL;
+    if (std.mem.eql(u8, "or", s)) return TokenType.OR;
+    if (std.mem.eql(u8, "return", s)) return TokenType.RETURN;
+    if (std.mem.eql(u8, "super", s)) return TokenType.SUPER;
+    if (std.mem.eql(u8, "this", s)) return TokenType.THIS;
+    if (std.mem.eql(u8, "true", s)) return TokenType.TRUE;
+    if (std.mem.eql(u8, "var", s)) return TokenType.VAR;
+    if (std.mem.eql(u8, "while", s)) return TokenType.WHILE;
+    if (std.mem.eql(u8, "error", s)) return TokenType.ERROR;
+    if (std.mem.eql(u8, "eof", s)) return TokenType.EOF;
+    return TokenType.IDENT;
+}
 
 fn isDigit(c: u21) bool {
     return c >= '0' and c <= '9';
@@ -206,9 +227,10 @@ test "tokenizer tokens something" {
 }
 
 test "tokenize line of code" {
-    var base = "啊们3 = 3.4 + 100 * g";
+    var base = "for 啊们3 = 3.4 + 100 * g";
     var tzer = Tokenizer.init(base);
 
+    try expect((try tzer.nextToken()).kind == TokenType.FOR);
     var nt = try tzer.nextToken();
     try expect(nt.kind == TokenType.IDENT);
     try expect(std.mem.eql(u8, base[nt.start..nt.end], "啊们3"));
@@ -218,4 +240,9 @@ test "tokenize line of code" {
     try expect((try tzer.nextToken()).kind == TokenType.NUMBER);
     try expect((try tzer.nextToken()).kind == TokenType.STAR);
     try expect((try tzer.nextToken()).kind == TokenType.IDENT);
+}
+
+test "keyword maker" {
+    try expect(identTokenType("for") == TokenType.FOR);
+    try expect(identTokenType("forge") == TokenType.IDENT);
 }
