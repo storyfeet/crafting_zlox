@@ -3,6 +3,10 @@ const fs = std.fs;
 const expect = std.testing.expect;
 //const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
+const SYMBOL = "@{}()[]\\\"*+-/?<>|%";
+const SPACE = "'\n\r\t ";
+const SYM_SPACE = SYMBOL ++ SPACE;
+
 pub fn readFile(path: [*]const u8, alloc: *std.mem.Allocator) ![]u8 {
     const f: fs.File = try fs.cwd().openFile(path, .{ .read = true });
     defer f.close();
@@ -14,7 +18,7 @@ pub const TokenType = enum { LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, C
 // One or two character tokens.
 BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
 // Literals.
-IDENTIFIER, STRING, NUMBER,
+IDENT, STRING, NUMBER,
 // Keywords.
 AND, CLASS, ELSE, FALSE, FOR, FUN, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE, ERROR, EOF };
 
@@ -28,6 +32,7 @@ pub const Token = struct {
 const ScanError = error{
     UnexpectedChar,
     UnterminatedString,
+    NonUnicode,
 };
 
 pub const Tokenizer = struct {
@@ -47,7 +52,6 @@ pub const Tokenizer = struct {
         self.skipWhiteSpace();
         self.start = self.uts.i;
         var c = self.uts.nextCodepoint() orelse return self.makeToken(TokenType.EOF);
-
         switch (c) {
             '(' => return self.makeToken(TokenType.LEFT_PAREN),
             ')' => return self.makeToken(TokenType.RIGHT_PAREN),
@@ -65,8 +69,15 @@ pub const Tokenizer = struct {
             '>' => return self.makeToken(if (self.match("=")) TokenType.GREATER_EQUAL else TokenType.GREATER),
             '<' => return self.makeToken(if (self.match("=")) TokenType.LESS_EQUAL else TokenType.LESS),
             '"' => return try self.string(),
-            else => return error.UnexpectedChar,
+            else => {},
         }
+        if (isDigit(c)) {
+            return self.number();
+        }
+        if (isLetter(c)) {
+            return self.ident();
+        }
+        return error.UnexpectedChar;
     }
 
     fn makeToken(self: *@This(), t: TokenType) Token {
@@ -128,10 +139,60 @@ pub const Tokenizer = struct {
             _ = self.uts.nextCodepoint();
         }
     }
+
+    fn number(self: *@This()) !Token {
+        var hasPoint = false;
+        while (true) {
+            const pk = self.uts.peek(1);
+            if (pk.len == 0) return self.makeToken(TokenType.NUMBER);
+            const c = std.unicode.utf8Decode(pk) catch |_| return error.NonUnicode;
+            if (isDigit(c)) {
+                _ = self.uts.nextCodepoint();
+                continue;
+            }
+            if (c == '.') {
+                if (hasPoint) return self.makeToken(TokenType.NUMBER);
+                hasPoint = true;
+                _ = self.uts.nextCodepoint();
+                continue;
+            }
+            return self.makeToken(TokenType.NUMBER);
+        }
+    }
+
+    fn ident(self: *@This()) !Token {
+        while (true) {
+            const pk = self.uts.peek(1);
+            if (pk.len == 0) return self.makeToken(TokenType.IDENT);
+            const cp = std.unicode.utf8Decode(pk) catch return error.NonUnicode;
+            if (isSymSpace(cp)) {
+                return self.makeToken(TokenType.IDENT);
+            }
+            _ = self.uts.nextCodepoint();
+        }
+    }
 };
 
+fn isDigit(c: u21) bool {
+    return c >= '0' and c <= '9';
+}
+
+fn isLetter(c: u21) bool {
+    return !isSymSpace(c) and !isDigit(c);
+}
+
+fn isSymSpace(c: u21) bool {
+    var it = std.unicode.Utf8Iterator{ .i = 0, .bytes = SYM_SPACE };
+    while (it.nextCodepoint()) |cp| {
+        if (cp == c) {
+            return true;
+        }
+    }
+    return false;
+}
+
 test "tokenizer tokens something" {
-    var base = "( !=//你好hello\n\"f你\" ) thing";
+    var base = "( !=//你好hello\n\"f你\" )34.7 thing";
     var sc = Tokenizer.init(base);
     try expect((try sc.nextToken()).kind == TokenType.LEFT_PAREN);
     try expect((try sc.nextToken()).kind == TokenType.BANG_EQUAL);
@@ -139,4 +200,22 @@ test "tokenizer tokens something" {
     try expect(st.kind == TokenType.STRING);
     try expect(std.mem.eql(u8, base[st.start..st.end], "\"f你\""));
     try expect((try sc.nextToken()).kind == TokenType.RIGHT_PAREN);
+    st = try sc.nextToken();
+    try expect(st.kind == TokenType.NUMBER);
+    try expect(std.mem.eql(u8, base[st.start..st.end], "34.7"));
+}
+
+test "tokenize line of code" {
+    var base = "啊们3 = 3.4 + 100 * g";
+    var tzer = Tokenizer.init(base);
+
+    var nt = try tzer.nextToken();
+    try expect(nt.kind == TokenType.IDENT);
+    try expect(std.mem.eql(u8, base[nt.start..nt.end], "啊们3"));
+    try expect((try tzer.nextToken()).kind == TokenType.EQUAL);
+    try expect((try tzer.nextToken()).kind == TokenType.NUMBER);
+    try expect((try tzer.nextToken()).kind == TokenType.PLUS);
+    try expect((try tzer.nextToken()).kind == TokenType.NUMBER);
+    try expect((try tzer.nextToken()).kind == TokenType.STAR);
+    try expect((try tzer.nextToken()).kind == TokenType.IDENT);
 }
