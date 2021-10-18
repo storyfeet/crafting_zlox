@@ -48,8 +48,12 @@ pub const Tokenizer = struct {
         };
     }
 
-    pub fn str(self: []const u8) []const u8 {
+    pub fn str(self: *@This()) []const u8 {
         return self.uts.bytes;
+    }
+
+    pub fn tokenStr(self: *@This(), tk: Token) []const u8 {
+        return self.uts.bytes[tk.start..tk.end];
     }
 
     pub fn nextToken(self: *@This()) ScanError!Token {
