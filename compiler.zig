@@ -4,8 +4,10 @@ const std = @import("std");
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 const Token = scanner.Token;
 const TokenType = scanner.TokenType;
+const vm = @import("vm.zig");
 
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 pub fn compile(s: []const u8, ch: *chunk.Chunk) !void {
     _ = try Parser.init(s, ch);
@@ -60,7 +62,7 @@ const Parser = struct {
         try self.advance();
         const preFn: ParseFn = getRule(self.prev.kind).prefix orelse return error.ExpectedExpression;
         try preFn(self);
-        while (prec <= getRule(self.curr.kind).precedence) {
+        while (@enumToInt(prec) <= @enumToInt(getRule(self.curr.kind).precedence)) {
             try self.advance();
             const inFn: ParseFn = getRule(self.prev.kind).infix orelse return error.ExpectedInfix;
             try inFn(self);
@@ -93,8 +95,10 @@ const Parser = struct {
             else => return error.ExpectedMathOp,
         }
     }
+
     pub fn number(self: *@This()) ParseError!void {
-        var s = self.scanner.tokenStr(self.curr);
+        var s = self.scanner.tokenStr(self.prev);
+        std.debug.print("{s}", .{s});
         var val = try std.fmt.parseFloat(f64, s);
         try self.chk.addOp(chunk.OpData{ .CONSTANT = val });
     }
@@ -180,4 +184,20 @@ test "can compile something" {
 
 test "rule table functions" {
     try expect(std.meta.eql(getRule(.LEFT_PAREN), ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE }));
+}
+
+test "compiles and runs" {
+    var gpa = GPAlloc{};
+    var ch = chunk.Chunk.init(&gpa.allocator);
+    defer ch.deinit();
+    const s = "4 + 5 - (3 * 2)";
+    var p: Parser = try Parser.init(s, &ch);
+
+    try p.expression();
+    try ch.addOp(.RETURN);
+    var theVm = vm.VM.init(&ch, &gpa.allocator);
+    defer theVm.deinit();
+    const res = try theVm.run();
+    //std.debug.print("VM complete: res = {}", .{res});
+    try expectEqual(res, 3);
 }

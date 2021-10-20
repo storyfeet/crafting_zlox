@@ -108,6 +108,7 @@ pub const Tokenizer = struct {
     fn skipWhiteSpace(self: *@This()) void {
         while (true) {
             const c = self.uts.peek(1);
+            if (c.len == 0) return;
             const cp = std.unicode.utf8Decode(c) catch return;
             switch (cp) {
                 ' ', '\t', '\r' => {
