@@ -54,13 +54,13 @@ pub const VM = struct {
 
     pub fn run(
         self: *VM,
-    ) VMError!void {
+    ) VMError!Value {
         while (true) {
             switch (self.readInstruction()) {
                 OpCode.RETURN => {
                     var cval = self.readStack();
                     std.debug.print("RETURN = {}\n", .{cval});
-                    return;
+                    return cval;
                 },
 
                 OpCode.CONSTANT => {

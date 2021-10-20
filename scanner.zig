@@ -29,7 +29,7 @@ pub const Token = struct {
     end: usize,
 };
 
-const ScanError = error{
+pub const ScanError = error{
     UnexpectedChar,
     UnterminatedString,
     NonUnicode,

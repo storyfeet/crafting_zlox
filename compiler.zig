@@ -16,8 +16,13 @@ const ParseError = error{
     FloatParseError,
     UnexpectedToken,
     UnexpectedEOF,
+    ExpectedRightParen,
+    ExpectedMinus,
+    ExpectedMathOp,
+    ExpectedExpression,
+    ExpectedInfix,
     OutOfMemory,
-};
+} || scanner.ScanError;
 
 const Parser = struct {
     prev: Token,
@@ -30,20 +35,64 @@ const Parser = struct {
         return Parser{
             .prev = undefined,
             .curr = try sc.nextToken(),
-            .scanner = scanner.Tokenizer.init(s),
+            .scanner = sc,
             .chk = ch,
         };
     }
 
-    pub fn advance(self: @This()) !void {
-        self.prev = self.current;
+    pub fn advance(self: *@This()) ParseError!void {
+        self.prev = self.curr;
         self.curr = try self.scanner.nextToken();
     }
 
-    pub fn parsePrecedence(self: *@This()) ParseError!void {}
-    pub fn grouping(self: *@This()) ParseError!void {}
-    pub fn unary(self: *@This()) ParseError!void {}
-    pub fn binary(self: *@This()) ParseError!void {}
+    pub fn consume(self: *@This(), tk: TokenType, e: ParseError) ParseError!void {
+        if (self.curr.kind == tk) {
+            try self.advance();
+            return;
+        }
+        return e;
+    }
+
+    pub fn expression(self: *@This()) ParseError!void {
+        try self.parsePrecedence(.ASSIGNMENT);
+    }
+    pub fn parsePrecedence(self: *@This(), prec: Precedence) ParseError!void {
+        try self.advance();
+        const preFn: ParseFn = getRule(self.prev.kind).prefix orelse return error.ExpectedExpression;
+        try preFn(self);
+        while (prec <= getRule(self.curr.kind).precedence) {
+            try self.advance();
+            const inFn: ParseFn = getRule(self.prev.kind).infix orelse return error.ExpectedInfix;
+            try inFn(self);
+        }
+    }
+
+    pub fn grouping(self: *@This()) ParseError!void {
+        try self.expression();
+        try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
+    }
+
+    pub fn unary(self: *@This()) ParseError!void {
+        const opType = self.prev.kind;
+        try self.expression();
+        switch (opType) {
+            .MINUS => try self.chk.addOp(.NEGATE),
+            else => return error.ExpectedMinus,
+        }
+    }
+
+    pub fn binary(self: *@This()) ParseError!void {
+        const opType = self.prev.kind;
+        const rule = getRule(opType);
+        try self.parsePrecedence(rule.precedence.inc());
+        switch (opType) {
+            .PLUS => try self.chk.addOp(.ADD),
+            .MINUS => try self.chk.addOp(.SUB),
+            .STAR => try self.chk.addOp(.MUL),
+            .SLASH => try self.chk.addOp(.DIV),
+            else => return error.ExpectedMathOp,
+        }
+    }
     pub fn number(self: *@This()) ParseError!void {
         var s = self.scanner.tokenStr(self.curr);
         var val = try std.fmt.parseFloat(f64, s);
@@ -51,16 +100,23 @@ const Parser = struct {
     }
 };
 
-const Precedence = enum(u8) { NONE, ASSIGNMENT, // =
-OR, // or
-AND, // and
-EQUALITY, // == !=
-COMPARISON, // < > <= >=
-TERM, // + -
-FACTOR, // * /
-UNARY, // ! -
-CALL, // . ()
-PRIMARY };
+const Precedence = enum(u8) {
+    NONE,
+    ASSIGNMENT, // =
+    OR, // or
+    AND, // and
+    EQUALITY, // == !=
+    COMPARISON, // < > <= >=
+    TERM, // + -
+    FACTOR, // * /
+    UNARY, // ! -
+    CALL, // . ()
+    PRIMARY,
+    fn inc(self: @This()) @This() {
+        if (self == .PRIMARY) return .PRIMARY;
+        return @intToEnum(@This(), @enumToInt(self) + 1);
+    }
+};
 
 const ParseFn = fn (*Parser) ParseError!void;
 
@@ -70,7 +126,7 @@ const ParseRule = struct {
     precedence: Precedence = .NONE,
 };
 
-fn ruleTable(tk: TokenType) ParseRule {
+fn getRule(tk: TokenType) ParseRule {
     return switch (tk) {
         .LEFT_PAREN => ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE },
         .RIGHT_PAREN => ParseRule{},
@@ -123,5 +179,5 @@ test "can compile something" {
 }
 
 test "rule table functions" {
-    try expect(std.meta.eql(ruleTable(TokenType.LEFT_PAREN), ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE }));
+    try expect(std.meta.eql(getRule(.LEFT_PAREN), ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE }));
 }
