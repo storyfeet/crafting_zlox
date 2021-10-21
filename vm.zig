@@ -72,6 +72,11 @@ pub const VM = struct {
                 },
                 OpCode.NEGATE => {
                     var cval = self.readStack();
+                    var neg: Value = switch (cval) {
+                        .NUMBER => |n| .{ .NUMBER = -n },
+                        .BOOL => |b| .{ .BOOL = !b },
+                        .NIL => |_| .NIL,
+                    };
                     var neg = -cval;
                     if (conf.DEBUG_TRACE_EXECUTION) {
                         std.debug.print("NEGATE {} => {}\n", .{ cval, neg });

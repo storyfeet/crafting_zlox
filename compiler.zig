@@ -100,7 +100,7 @@ const Parser = struct {
         var s = self.scanner.tokenStr(self.prev);
         std.debug.print("{s}", .{s});
         var val = try std.fmt.parseFloat(f64, s);
-        try self.chk.addOp(chunk.OpData{ .CONSTANT = val });
+        try self.chk.addOp(chunk.OpData{ .CONSTANT = .{ .NUMBER = val } });
     }
 };
 

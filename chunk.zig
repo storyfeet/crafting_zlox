@@ -1,7 +1,17 @@
 const std = @import("std");
 const AC = std.mem.Alloc;
 
-pub const Value = f64;
+pub const ValueType = enum(u8) {
+    BOOL,
+    NIL,
+    NUMBER,
+};
+
+pub const Value = union(ValueType) {
+    BOOL: bool,
+    NIL: void,
+    NUMBER: f64,
+};
 
 pub const OpCode = enum(u8) {
     RETURN,
