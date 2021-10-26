@@ -37,6 +37,7 @@ pub fn main() !void {
 pub const VMError = error{
     COMPILE_ERROR,
     RUN_ERROR,
+    MATH_ON_NON_NUMBER,
     OutOfMemory,
 };
 
@@ -57,27 +58,29 @@ pub const VM = struct {
     ) VMError!Value {
         while (true) {
             switch (self.readInstruction()) {
-                OpCode.RETURN => {
+                .RETURN => {
                     var cval = self.readStack();
                     std.debug.print("RETURN = {}\n", .{cval});
                     return cval;
                 },
 
-                OpCode.CONSTANT => {
+                .CONSTANT => {
                     var cval = self.readConst();
                     if (conf.DEBUG_TRACE_EXECUTION) {
                         std.debug.print("CONSTANT = {}\n", .{cval});
                     }
-                    self.stack.append(cval) catch |err| return error.RUN_ERROR;
+                    try self.stack.append(cval);
                 },
-                OpCode.NEGATE => {
+                .FALSE => try self.stack.append(.{ .BOOL = false }),
+                .TRUE => try self.stack.append(.{ .BOOL = true }),
+                .NIL => try self.stack.append(.NIL),
+                .NEGATE => {
                     var cval = self.readStack();
                     var neg: Value = switch (cval) {
                         .NUMBER => |n| .{ .NUMBER = -n },
                         .BOOL => |b| .{ .BOOL = !b },
                         .NIL => |_| .NIL,
                     };
-                    var neg = -cval;
                     if (conf.DEBUG_TRACE_EXECUTION) {
                         std.debug.print("NEGATE {} => {}\n", .{ cval, neg });
                     }
@@ -125,16 +128,25 @@ pub const VM = struct {
     fn binaryOp(self: *VM, op: comptime OpCode) !Value {
         const b = self.readStack();
         const a = self.readStack();
+        var bval: f64 = switch (b) {
+            .NUMBER => |n| n,
+            else => return error.MATH_ON_NON_NUMBER,
+        };
+
+        var aval: f64 = switch (a) {
+            .NUMBER => |n| n,
+            else => return error.MATH_ON_NON_NUMBER,
+        };
         const res = switch (op) {
-            OpCode.ADD => a + b,
-            OpCode.DIV => a / b,
-            OpCode.MUL => a * b,
-            OpCode.SUB => a - b,
+            OpCode.ADD => aval + bval,
+            OpCode.DIV => aval / bval,
+            OpCode.MUL => aval * bval,
+            OpCode.SUB => aval - bval,
             else => unreachable,
         };
         if (conf.DEBUG_TRACE_EXECUTION) {
             std.debug.print("BIN_OP {} __ {} => {}\n", .{ a, b, res });
         }
-        return res;
+        return Value{ .NUMBER = res };
     }
 };

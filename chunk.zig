@@ -21,6 +21,9 @@ pub const OpCode = enum(u8) {
     SUB,
     MUL,
     DIV,
+    NIL,
+    FALSE,
+    TRUE,
 };
 
 pub const OpData = union(OpCode) {
@@ -31,6 +34,9 @@ pub const OpData = union(OpCode) {
     SUB: void,
     MUL: void,
     DIV: void,
+    NIL: void,
+    FALSE: void,
+    TRUE: void,
 };
 
 pub const Chunk = struct {

@@ -69,6 +69,15 @@ const Parser = struct {
         }
     }
 
+    pub fn literal(self: *@This()) ParseError!void {
+        switch (self.prev.kind) {
+            .FALSE => try self.chk.addOp(.FALSE),
+            .TRUE => try self.chk.addOp(.TRUE),
+            .NIL => try self.chk.addOp(.NIL),
+            else => unreachable,
+        }
+    }
+
     pub fn grouping(self: *@This()) ParseError!void {
         try self.expression();
         try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
@@ -157,17 +166,15 @@ fn getRule(tk: TokenType) ParseRule {
         .AND => ParseRule{},
         .CLASS => ParseRule{},
         .ELSE => ParseRule{},
-        .FALSE => ParseRule{},
+        .FALSE, .TRUE, .NIL => ParseRule{ .prefix = Parser.literal, .precedence = .NONE },
         .FOR => ParseRule{},
         .FUN => ParseRule{},
         .IF => ParseRule{},
-        .NIL => ParseRule{},
         .OR => ParseRule{},
         .PRINT => ParseRule{},
         .RETURN => ParseRule{},
         .SUPER => ParseRule{},
         .THIS => ParseRule{},
-        .TRUE => ParseRule{},
         .VAR => ParseRule{},
         .WHILE => ParseRule{},
         .ERROR => ParseRule{},
@@ -199,5 +206,5 @@ test "compiles and runs" {
     defer theVm.deinit();
     const res = try theVm.run();
     //std.debug.print("VM complete: res = {}", .{res});
-    try expectEqual(res, 3);
+    try expectEqual(res, .{ .NUMBER = 3 });
 }
