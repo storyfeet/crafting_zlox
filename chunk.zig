@@ -11,6 +11,14 @@ pub const Value = union(ValueType) {
     BOOL: bool,
     NIL: void,
     NUMBER: f64,
+
+    pub fn as_bool(self: @This()) bool {
+        return switch (self) {
+            .BOOL => |b| b,
+            .NUMBER => |n| n != 0,
+            .NIL => false,
+        };
+    }
 };
 
 pub const OpCode = enum(u8) {
@@ -24,6 +32,7 @@ pub const OpCode = enum(u8) {
     NIL,
     FALSE,
     TRUE,
+    NOT,
 };
 
 pub const OpData = union(OpCode) {
@@ -37,6 +46,7 @@ pub const OpData = union(OpCode) {
     NIL: void,
     FALSE: void,
     TRUE: void,
+    NOT: void,
 };
 
 pub const Chunk = struct {

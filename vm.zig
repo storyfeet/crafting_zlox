@@ -74,6 +74,10 @@ pub const VM = struct {
                 .FALSE => try self.stack.append(.{ .BOOL = false }),
                 .TRUE => try self.stack.append(.{ .BOOL = true }),
                 .NIL => try self.stack.append(.NIL),
+                .NOT => {
+                    var cval = self.readStack();
+                    self.stack.append(.{ .BOOL = !cval.as_bool() }) catch unreachable;
+                },
                 .NEGATE => {
                     var cval = self.readStack();
                     var neg: Value = switch (cval) {

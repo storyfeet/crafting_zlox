@@ -26,6 +26,18 @@ const ParseError = error{
     OutOfMemory,
 } || scanner.ScanError;
 
+//TODO fix to not just handle expressions
+pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !chunk.Value {
+    var ch = chunk.Chunk.init(a);
+    defer ch.deinit();
+    var p: Parser = try Parser.init(s, &ch);
+    try p.expression();
+    try ch.addOp(.RETURN);
+    var theVm = vm.VM.init(&ch, a);
+    defer theVm.deinit();
+    return try theVm.run();
+}
+
 const Parser = struct {
     prev: Token,
     curr: Token,
@@ -88,6 +100,7 @@ const Parser = struct {
         try self.expression();
         switch (opType) {
             .MINUS => try self.chk.addOp(.NEGATE),
+            .BANG => try self.chk.addOp(.NOT),
             else => return error.ExpectedMinus,
         }
     }
@@ -142,43 +155,13 @@ const ParseRule = struct {
 fn getRule(tk: TokenType) ParseRule {
     return switch (tk) {
         .LEFT_PAREN => ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE },
-        .RIGHT_PAREN => ParseRule{},
-        .LEFT_BRACE => ParseRule{},
-        .RIGHT_BRACE => ParseRule{},
-        .COMMA => ParseRule{},
-        .DOT => ParseRule{},
         .MINUS => ParseRule{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .TERM },
         .PLUS => ParseRule{ .infix = Parser.binary, .precedence = .TERM },
-        .SEMICOLON => ParseRule{},
-        .SLASH => ParseRule{ .infix = Parser.binary, .precedence = .FACTOR },
-        .STAR => ParseRule{ .infix = Parser.binary, .precedence = .FACTOR },
-        .BANG => ParseRule{},
-        .BANG_EQUAL => ParseRule{},
-        .EQUAL => ParseRule{},
-        .EQUAL_EQUAL => ParseRule{},
-        .GREATER => ParseRule{},
-        .GREATER_EQUAL => ParseRule{},
-        .LESS => ParseRule{},
-        .LESS_EQUAL => ParseRule{},
-        .IDENT => ParseRule{},
-        .STRING => ParseRule{},
+        .STAR, .SLASH => ParseRule{ .infix = Parser.binary, .precedence = .FACTOR },
+        .BANG => ParseRule{ .prefix = Parser.unary, .precedence = .NONE },
         .NUMBER => ParseRule{ .prefix = Parser.number },
-        .AND => ParseRule{},
-        .CLASS => ParseRule{},
-        .ELSE => ParseRule{},
         .FALSE, .TRUE, .NIL => ParseRule{ .prefix = Parser.literal, .precedence = .NONE },
-        .FOR => ParseRule{},
-        .FUN => ParseRule{},
-        .IF => ParseRule{},
-        .OR => ParseRule{},
-        .PRINT => ParseRule{},
-        .RETURN => ParseRule{},
-        .SUPER => ParseRule{},
-        .THIS => ParseRule{},
-        .VAR => ParseRule{},
-        .WHILE => ParseRule{},
-        .ERROR => ParseRule{},
-        .EOF => ParseRule{},
+        else => ParseRule{},
     };
 }
 
@@ -195,16 +178,12 @@ test "rule table functions" {
 
 test "compiles and runs" {
     var gpa = GPAlloc{};
-    var ch = chunk.Chunk.init(&gpa.allocator);
-    defer ch.deinit();
-    const s = "4 + 5 - (3 * 2)";
-    var p: Parser = try Parser.init(s, &ch);
-
-    try p.expression();
-    try ch.addOp(.RETURN);
-    var theVm = vm.VM.init(&ch, &gpa.allocator);
-    defer theVm.deinit();
-    const res = try theVm.run();
-    //std.debug.print("VM complete: res = {}", .{res});
+    var res = try compileAndRun("4 + 5 - (3* 2)", &gpa.allocator);
     try expectEqual(res, .{ .NUMBER = 3 });
+}
+
+test "compile and run bool" {
+    var gpa = GPAlloc{};
+    var res = try compileAndRun("!(3-3)", &gpa.allocator);
+    try expectEqual(res, chunk.Value{ .BOOL = true });
 }
