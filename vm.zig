@@ -90,17 +90,26 @@ pub const VM = struct {
                     }
                     self.stack.append(neg) catch unreachable;
                 },
-                OpCode.ADD => {
+                .ADD => {
                     try self.stack.append(try self.binaryOp(OpCode.ADD));
                 },
-                OpCode.DIV => {
+                .DIV => {
                     try self.stack.append(try self.binaryOp(OpCode.DIV));
                 },
-                OpCode.MUL => {
+                .MUL => {
                     try self.stack.append(try self.binaryOp(OpCode.MUL));
                 },
-                OpCode.SUB => {
+                .SUB => {
                     try self.stack.append(try self.binaryOp(OpCode.SUB));
+                },
+                .EQUAL => {
+                    try self.stack.append(self.boolOp(Value.equal));
+                },
+                .GREATER => {
+                    try self.stack.append(self.boolOp(Value.greater));
+                },
+                .LESS => {
+                    try self.stack.append(self.boolOp(Value.less));
                 },
             }
         }
@@ -129,7 +138,13 @@ pub const VM = struct {
         self.stack.deinit();
     }
 
-    fn binaryOp(self: *VM, op: comptime OpCode) !Value {
+    fn boolOp(self: *VM, comptime op: fn (Value, Value) bool) Value {
+        const b = self.readStack();
+        const a = self.readStack();
+        return Value{ .BOOL = @call(.{ .modifier = .always_inline }, op, .{ a, b }) };
+    }
+
+    fn binaryOp(self: *VM, comptime op: OpCode) !Value {
         const b = self.readStack();
         const a = self.readStack();
         var bval: f64 = switch (b) {

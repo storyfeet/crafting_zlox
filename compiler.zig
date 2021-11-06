@@ -114,6 +114,21 @@ const Parser = struct {
             .MINUS => try self.chk.addOp(.SUB),
             .STAR => try self.chk.addOp(.MUL),
             .SLASH => try self.chk.addOp(.DIV),
+            .EQUAL_EQUAL => try self.chk.addOp(.EQUAL),
+            .LESS => try self.chk.addOp(.LESS),
+            .GREATER => try self.chk.addOp(.GREATER),
+            .BANG_EQUAL => {
+                try self.chk.addOp(.EQUAL);
+                try self.chk.addOp(.NOT);
+            },
+            .LESS_EQUAL => {
+                try self.chk.addOp(.GREATER);
+                try self.chk.addOp(.NOT);
+            },
+            .GREATER_EQUAL => {
+                try self.chk.addOp(.LESS);
+                try self.chk.addOp(.NOT);
+            },
             else => return error.ExpectedMathOp,
         }
     }
@@ -161,6 +176,8 @@ fn getRule(tk: TokenType) ParseRule {
         .BANG => ParseRule{ .prefix = Parser.unary, .precedence = .NONE },
         .NUMBER => ParseRule{ .prefix = Parser.number },
         .FALSE, .TRUE, .NIL => ParseRule{ .prefix = Parser.literal, .precedence = .NONE },
+        .GREATER, .LESS, .LESS_EQUAL, .GREATER_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .COMPARISON },
+        .EQUAL_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .EQUALITY },
         else => ParseRule{},
     };
 }
@@ -186,4 +203,13 @@ test "compile and run bool" {
     var gpa = GPAlloc{};
     var res = try compileAndRun("!(3-3)", &gpa.allocator);
     try expectEqual(res, chunk.Value{ .BOOL = true });
+}
+
+test "bools equality" {
+    var gpa = GPAlloc{};
+    var res = try compileAndRun("(4 + 6 > 3 + 6)", &gpa.allocator);
+    //std.debug.print("bools eq : {}", .{res});
+
+    const v = chunk.Value{ .BOOL = true };
+    try expect(v.equal(res));
 }
