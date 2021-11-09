@@ -1,5 +1,6 @@
 const scanner = @import("scanner.zig");
 const chunk = @import("chunk.zig");
+const value = @import("value.zig");
 const std = @import("std");
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 const Token = scanner.Token;
@@ -27,7 +28,7 @@ const ParseError = error{
 } || scanner.ScanError;
 
 //TODO fix to not just handle expressions
-pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !chunk.Value {
+pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
     var ch = chunk.Chunk.init(a);
     defer ch.deinit();
     var p: Parser = try Parser.init(s, &ch);
@@ -202,7 +203,7 @@ test "compiles and runs" {
 test "compile and run bool" {
     var gpa = GPAlloc{};
     var res = try compileAndRun("!(3-3)", &gpa.allocator);
-    try expectEqual(res, chunk.Value{ .BOOL = true });
+    try expectEqual(res, value.Value{ .BOOL = true });
 }
 
 test "bools equality" {
@@ -210,6 +211,6 @@ test "bools equality" {
     var res = try compileAndRun("(4 + 6 > 3 + 6)", &gpa.allocator);
     //std.debug.print("bools eq : {}", .{res});
 
-    const v = chunk.Value{ .BOOL = true };
+    const v = value.Value{ .BOOL = true };
     try expect(v.equal(res));
 }

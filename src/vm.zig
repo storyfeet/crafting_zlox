@@ -1,9 +1,10 @@
 const std = @import("std");
 const chunk = @import("chunk.zig");
 const conf = @import("config.zig");
+const value = @import("value.zig");
 const OpCode = chunk.OpCode;
 const OpData = chunk.OpData;
-const Value = chunk.Value;
+const Value = value.Value;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn main() !void {
