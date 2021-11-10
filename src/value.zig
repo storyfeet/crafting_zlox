@@ -2,18 +2,21 @@ pub const ValueType = enum(u8) {
     BOOL,
     NIL,
     NUMBER,
+    OBJ,
 };
 
 pub const Value = union(ValueType) {
     BOOL: bool,
     NIL: void,
     NUMBER: f64,
+    OBJ: *Obj,
 
     pub fn as_bool(self: @This()) bool {
         return switch (self) {
             .BOOL => |b| b,
             .NUMBER => |n| n != 0,
             .NIL => false,
+            .OBJ => false,
         };
     }
 
@@ -28,16 +31,24 @@ pub const Value = union(ValueType) {
                 .NUMBER => |b_num| return a_num == b_num,
                 else => return false,
             },
+            .OBJ => |a_p| switch (b) {
+                .OBJ => |b_p| return a_p.equal(b_p),
+                else => return false,
+            },
         }
     }
 
-    pub fn greater(a: @This(), b: @This()) bool {
+    pub fn greater(a: @This(), b: @This()) !bool {
         switch (a) {
             .BOOL => return false,
             .NIL => return false,
             .NUMBER => |a_num| switch (b) {
                 .NUMBER => |b_num| return a_num > b_num,
-                else => return false,
+                else => return error.CompareError,
+            },
+            .OBJ => |a_p| switch (b) {
+                .OBJ => |b_p| return a_p.greater(b_p),
+                else => return error.CompareError,
             },
         }
     }
@@ -47,8 +58,23 @@ pub const Value = union(ValueType) {
     }
 };
 
-pub const ObjType = enum(u4) {};
+pub const ObjType = enum(u4) {
+    STR,
+};
 
-pub const Obj = union(ObjType) {};
+pub const Obj = struct {
+    meta: u8, //TODO RC etc
+    data: ObjData,
 
-pub const ObjString = struct {};
+    pub fn equal(a: *@This(), b: *@This()) bool {
+        return false; //TODO
+    }
+
+    pub fn greater(a: *@This(), b: *@This()) !bool {
+        return false; //TODO
+    }
+};
+
+pub const ObjData = union(ObjType) {
+    STR: []u8,
+};
