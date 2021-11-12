@@ -6,12 +6,14 @@ const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 const Token = scanner.Token;
 const TokenType = scanner.TokenType;
 const vm = @import("vm.zig");
+const Obj = value.Obj;
+const Value = value.Value;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
-pub fn compile(s: []const u8, ch: *chunk.Chunk) !void {
-    _ = try Parser.init(s, ch);
+pub fn compile(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !void {
+    _ = try Parser.init(s, alloc, ch);
 }
 
 const ParseError = error{
@@ -31,7 +33,7 @@ const ParseError = error{
 pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
     var ch = chunk.Chunk.init(a);
     defer ch.deinit();
-    var p: Parser = try Parser.init(s, &ch);
+    var p: Parser = try Parser.init(s, a, &ch);
     try p.expression();
     try ch.addOp(.RETURN);
     var theVm = vm.VM.init(&ch, a);
@@ -44,14 +46,16 @@ const Parser = struct {
     curr: Token,
     scanner: scanner.Tokenizer,
     chk: *chunk.Chunk,
+    alloc: *std.mem.Allocator,
 
-    pub fn init(s: []const u8, ch: *chunk.Chunk) !@This() {
+    pub fn init(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !@This() {
         var sc = scanner.Tokenizer.init(s);
         return Parser{
             .prev = undefined,
             .curr = try sc.nextToken(),
             .scanner = sc,
             .chk = ch,
+            .alloc = alloc,
         };
     }
 
@@ -136,9 +140,19 @@ const Parser = struct {
 
     pub fn number(self: *@This()) ParseError!void {
         var s = self.scanner.tokenStr(self.prev);
-        std.debug.print("{s}", .{s});
+        //std.debug.print("{s}", .{s});
         var val = try std.fmt.parseFloat(f64, s);
         try self.chk.addOp(chunk.OpData{ .CONSTANT = .{ .NUMBER = val } });
+    }
+
+    pub fn string(self: *@This()) ParseError!void {
+        var s_orig = self.scanner.tokenStr(self.prev);
+        const s_copy: []u8 = try self.alloc.alloc(u8, s_orig.len - 2);
+        std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 2]);
+        const ob: *value.Obj = try self.alloc.create(Obj);
+        ob.* = .{ .data = .{ .STR = s_copy } };
+        const val = value.Value{ .OBJ = ob };
+        try self.chk.addOp(chunk.OpData{ .CONSTANT = val });
     }
 };
 
@@ -179,6 +193,7 @@ fn getRule(tk: TokenType) ParseRule {
         .FALSE, .TRUE, .NIL => ParseRule{ .prefix = Parser.literal, .precedence = .NONE },
         .GREATER, .LESS, .LESS_EQUAL, .GREATER_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .COMPARISON },
         .EQUAL_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .EQUALITY },
+        .STRING => ParseRule{ .prefix = Parser.string },
         else => ParseRule{},
     };
 }
@@ -187,7 +202,7 @@ test "can compile something" {
     var gpa = GPAlloc{};
     const s = "print \"hello\"";
     var ch = chunk.Chunk.init(&gpa.allocator);
-    try compile(s, &ch);
+    try compile(s, &gpa.allocator, &ch);
 }
 
 test "rule table functions" {
@@ -212,5 +227,16 @@ test "bools equality" {
     //std.debug.print("bools eq : {}", .{res});
 
     const v = value.Value{ .BOOL = true };
-    try expect(v.equal(res));
+    try expect(try v.equal(res));
+}
+
+test "string equality" {
+    var gpa = GPAlloc{};
+    var res = try compileAndRun(
+        \\"hello" == "hello"
+    , &gpa.allocator);
+    //std.debug.print("bools eq : {}", .{res});
+
+    const v = value.Value{ .BOOL = true };
+    try expect(try v.equal(res));
 }

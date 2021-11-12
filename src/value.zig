@@ -1,8 +1,14 @@
+const std = @import("std");
+
 pub const ValueType = enum(u8) {
     BOOL,
     NIL,
     NUMBER,
     OBJ,
+};
+
+pub const ValueError = error{
+    CompareError,
 };
 
 pub const Value = union(ValueType) {
@@ -20,7 +26,7 @@ pub const Value = union(ValueType) {
         };
     }
 
-    pub fn equal(a: @This(), b: @This()) bool {
+    pub fn equal(a: @This(), b: @This()) ValueError!bool {
         switch (a) {
             .BOOL => |a_bool| switch (b) {
                 .BOOL => |b_bool| return a_bool == b_bool,
@@ -38,7 +44,7 @@ pub const Value = union(ValueType) {
         }
     }
 
-    pub fn greater(a: @This(), b: @This()) !bool {
+    pub fn greater(a: @This(), b: @This()) ValueError!bool {
         switch (a) {
             .BOOL => return false,
             .NIL => return false,
@@ -53,7 +59,7 @@ pub const Value = union(ValueType) {
         }
     }
 
-    pub fn less(a: @This(), b: @This()) bool {
+    pub fn less(a: @This(), b: @This()) ValueError!bool {
         return greater(b, a);
     }
 };
@@ -63,11 +69,22 @@ pub const ObjType = enum(u4) {
 };
 
 pub const Obj = struct {
-    meta: u8, //TODO RC etc
+    meta: u8 = 0, //TODO RC etc
     data: ObjData,
 
-    pub fn equal(a: *@This(), b: *@This()) bool {
-        return false; //TODO
+    pub fn equal(a: *@This(), b: *@This()) !bool {
+        const atype: ObjType = a.data;
+        if (atype != b.data) return false;
+
+        _ = switch (a.data) {
+            .STR => |a_s| switch (b.data) {
+                .STR => |b_s| return std.mem.eql(u8, a_s, b_s),
+                // else => .{},
+            },
+            //else => .{},
+        };
+
+        return @ptrToInt(a) == @ptrToInt(b);
     }
 
     pub fn greater(a: *@This(), b: *@This()) !bool {

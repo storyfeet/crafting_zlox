@@ -40,17 +40,20 @@ pub const VMError = error{
     RUN_ERROR,
     MATH_ON_NON_NUMBER,
     OutOfMemory,
-};
+    NegatingObject,
+} || value.ValueError;
 
 pub const VM = struct {
     ip: usize,
     chunk: *chunk.Chunk,
     stack: std.ArrayList(Value),
+    alloc: *std.mem.Allocator,
     pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
         return VM{
             .chunk = ch,
             .ip = 0,
             .stack = std.ArrayList(Value).init(alloc),
+            .alloc = alloc,
         };
     }
 
@@ -85,6 +88,7 @@ pub const VM = struct {
                         .NUMBER => |n| .{ .NUMBER = -n },
                         .BOOL => |b| .{ .BOOL = !b },
                         .NIL => |_| .NIL,
+                        .OBJ => |_| return error.NegatingObject,
                     };
                     if (conf.DEBUG_TRACE_EXECUTION) {
                         std.debug.print("NEGATE {} => {}\n", .{ cval, neg });
@@ -104,13 +108,13 @@ pub const VM = struct {
                     try self.stack.append(try self.binaryOp(OpCode.SUB));
                 },
                 .EQUAL => {
-                    try self.stack.append(self.boolOp(Value.equal));
+                    try self.stack.append(try self.boolOp(Value.equal));
                 },
                 .GREATER => {
-                    try self.stack.append(self.boolOp(Value.greater));
+                    try self.stack.append(try self.boolOp(Value.greater));
                 },
                 .LESS => {
-                    try self.stack.append(self.boolOp(Value.less));
+                    try self.stack.append(try self.boolOp(Value.less));
                 },
             }
         }
@@ -139,10 +143,10 @@ pub const VM = struct {
         self.stack.deinit();
     }
 
-    fn boolOp(self: *VM, comptime op: fn (Value, Value) bool) Value {
+    fn boolOp(self: *VM, comptime op: fn (Value, Value) value.ValueError!bool) value.ValueError!Value {
         const b = self.readStack();
         const a = self.readStack();
-        return Value{ .BOOL = @call(.{ .modifier = .always_inline }, op, .{ a, b }) };
+        return Value{ .BOOL = try @call(.{ .modifier = .always_inline }, op, .{ a, b }) };
     }
 
     fn binaryOp(self: *VM, comptime op: OpCode) !Value {
