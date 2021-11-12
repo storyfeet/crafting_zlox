@@ -5,6 +5,7 @@ const value = @import("value.zig");
 const OpCode = chunk.OpCode;
 const OpData = chunk.OpData;
 const Value = value.Value;
+const Obj = value.Obj;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn main() !void {
@@ -152,6 +153,18 @@ pub const VM = struct {
     fn binaryOp(self: *VM, comptime op: OpCode) !Value {
         const b = self.readStack();
         const a = self.readStack();
+
+        if (op == .ADD) {
+            if (a.asStr()) |a_s| {
+                if (b.asStr()) |b_s| {
+                    const s = try value.concatStr(a_s, b_s, self.alloc);
+                    var ob: *Obj = try self.alloc.create(Obj);
+                    ob.* = .{ .data = .{ .STR = s } };
+                    return Value{ .OBJ = ob };
+                }
+            }
+        }
+
         var bval: f64 = switch (b) {
             .NUMBER => |n| n,
             else => return error.MATH_ON_NON_NUMBER,

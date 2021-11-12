@@ -148,7 +148,7 @@ const Parser = struct {
     pub fn string(self: *@This()) ParseError!void {
         var s_orig = self.scanner.tokenStr(self.prev);
         const s_copy: []u8 = try self.alloc.alloc(u8, s_orig.len - 2);
-        std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 2]);
+        std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 1]);
         const ob: *value.Obj = try self.alloc.create(Obj);
         ob.* = .{ .data = .{ .STR = s_copy } };
         const val = value.Value{ .OBJ = ob };
@@ -233,9 +233,9 @@ test "bools equality" {
 test "string equality" {
     var gpa = GPAlloc{};
     var res = try compileAndRun(
-        \\"hello" == "hello"
+        \\"hello" == ("hel" + "lo")
     , &gpa.allocator);
-    //std.debug.print("bools eq : {}", .{res});
+    //std.debug.print("HELLO  eq : {s}\n", .{res.asStr()});
 
     const v = value.Value{ .BOOL = true };
     try expect(try v.equal(res));

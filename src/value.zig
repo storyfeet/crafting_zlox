@@ -62,6 +62,15 @@ pub const Value = union(ValueType) {
     pub fn less(a: @This(), b: @This()) ValueError!bool {
         return greater(b, a);
     }
+    pub fn asStr(self: *const @This()) ?[]const u8 {
+        switch (self.*) {
+            .OBJ => |o| switch (o.data) {
+                .STR => |s| return s,
+                //else => return null,
+            },
+            else => return null,
+        }
+    }
 };
 
 pub const ObjType = enum(u4) {
@@ -95,3 +104,11 @@ pub const Obj = struct {
 pub const ObjData = union(ObjType) {
     STR: []u8,
 };
+
+pub fn concatStr(a: []const u8, b: []const u8, alloc: *std.mem.Allocator) ![]u8 {
+    var new_len = a.len + b.len;
+    var res: []u8 = try alloc.alloc(u8, new_len);
+    std.mem.copy(u8, res[0..], a);
+    std.mem.copy(u8, res[a.len..], b);
+    return res;
+}
