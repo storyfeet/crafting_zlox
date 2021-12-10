@@ -2,11 +2,15 @@ const std = @import("std");
 const chunk = @import("chunk.zig");
 const conf = @import("config.zig");
 const value = @import("value.zig");
-const gc = @import("gc.zig");
+//const gc = @import("gc.zig");
+const droplist = @import("util/droplist.zig");
+const DropList = droplist.DropList;
+
 const OpCode = chunk.OpCode;
 const OpData = chunk.OpData;
 const Value = value.Value;
 const Obj = value.Obj;
+const ObjData = value.ObjData;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn main() !void {
@@ -49,6 +53,7 @@ pub const VM = struct {
     ip: usize,
     chunk: *chunk.Chunk,
     stack: std.ArrayList(Value),
+    freelist: DropList(*Obj),
     alloc: *std.mem.Allocator,
     pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
         return VM{
@@ -56,6 +61,7 @@ pub const VM = struct {
             .ip = 0,
             .stack = std.ArrayList(Value).init(alloc),
             .alloc = alloc,
+            .freelist = DropList(*Obj).init(alloc),
         };
     }
 
@@ -122,6 +128,14 @@ pub const VM = struct {
         }
     }
 
+    fn newObjectValue(self: *VM, data: ObjData) !Value {
+        var res = try self.alloc.create(Obj);
+        res.meta = 0;
+        res.data = data;
+        try self.freelist.push(res);
+        return Value{ .OBJ = res };
+    }
+
     fn readInstruction(self: *VM) OpCode {
         var op = @intToEnum(OpCode, self.chunk.ins.items[self.ip]);
         self.ip += 1;
@@ -159,9 +173,7 @@ pub const VM = struct {
             if (a.asStr()) |a_s| {
                 if (b.asStr()) |b_s| {
                     const s = try value.concatStr(a_s, b_s, self.alloc);
-                    var ob: *Obj = try self.alloc.create(Obj);
-                    ob.* = .{ .data = .{ .STR = s } };
-                    return Value{ .OBJ = ob };
+                    return try self.newObjectValue(.{ .STR = s });
                 }
             }
         }
