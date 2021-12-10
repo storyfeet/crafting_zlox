@@ -2,6 +2,7 @@ const std = @import("std");
 const chunk = @import("chunk.zig");
 const conf = @import("config.zig");
 const value = @import("value.zig");
+const gc = @import("gc.zig");
 const OpCode = chunk.OpCode;
 const OpData = chunk.OpData;
 const Value = value.Value;
