@@ -157,6 +157,8 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM) void {
         self.stack.deinit();
+
+        self.freelist.deinit(self.alloc, Obj.deinit);
     }
 
     fn boolOp(self: *VM, comptime op: fn (Value, Value) value.ValueError!bool) value.ValueError!Value {

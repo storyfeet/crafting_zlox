@@ -99,10 +99,20 @@ pub const Obj = struct {
     pub fn greater(a: *@This(), b: *@This()) !bool {
         return false; //TODO
     }
+
+    pub fn deinit(this: *@This(), alloc: *std.mem.Allocator) void {
+        this.data.deinit(alloc);
+    }
 };
 
 pub const ObjData = union(ObjType) {
     STR: []u8,
+
+    fn deinit(this: @This(), alloc: *std.mem.Allocator) void {
+        switch (this) {
+            .STR => |s| alloc.free(s),
+        }
+    }
 };
 
 pub fn concatStr(a: []const u8, b: []const u8, alloc: *std.mem.Allocator) ![]u8 {

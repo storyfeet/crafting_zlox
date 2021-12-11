@@ -20,7 +20,12 @@ pub fn DropList(comptime T: type) type {
             };
         }
 
-        pub fn deinit(this: @This()) void {
+        pub fn deinit(this: *@This(), alloc: *std.mem.Allocator, destroyer: fn (T, *std.mem.Allocator) void) void {
+            var it = this.iter();
+            while (it.next()) |nx| {
+                destroyer(nx, alloc);
+            }
+
             this.data.deinit();
             this.drops.deinit();
         }
@@ -65,6 +70,7 @@ pub fn DropList(comptime T: type) type {
         pub fn iter(this: *@This()) DropListIter(T) {
             return DropListIter(T){ .dl = this, .n = 0 };
         }
+        pub fn noDestroy(_: T, _b: *std.mem.Allocator) void {}
     };
 }
 
@@ -92,7 +98,7 @@ fn test_gt5(n: i32) bool {
 
 test "Drop list does thing" {
     var dl = DropList(i32).init(std.testing.allocator);
-    defer dl.deinit();
+    defer dl.deinit(std.testing.allocator, DropList(i32).noDestroy);
     try dl.push(3);
     try dl.push(7);
     try dl.push(4);
