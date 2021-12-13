@@ -72,6 +72,12 @@ const Parser = struct {
         return e;
     }
 
+    pub fn program(self: *@This()) ParseError!void {}
+
+    pub fn expression(self: *@This()) ParseError!void {}
+
+    pub fn statement(self: *@This()) ParseError!void {}
+
     pub fn expression(self: *@This()) ParseError!void {
         try self.parsePrecedence(.ASSIGNMENT);
     }
