@@ -42,8 +42,7 @@ pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
 }
 
 const Parser = struct {
-    prev: Token,
-    curr: Token,
+    peek: ?Token,
     scanner: scanner.Tokenizer,
     chk: *chunk.Chunk,
     alloc: *std.mem.Allocator,
@@ -59,17 +58,28 @@ const Parser = struct {
         };
     }
 
-    pub fn advance(self: *@This()) ParseError!void {
-        self.prev = self.curr;
-        self.curr = try self.scanner.nextToken();
+    pub fn peekToken(this: *@This()) ParseError!Token {
+        if (this.peek) |p| {
+            return p;
+        }
+        var nx = try this.scanner.nextToken();
+        this.peek = nx;
+        return nx;
+    }
+
+    pub fn takeToken(this: *@This()) ParseError!Token {
+        if (this.peek) |p| {
+            this.peek = null;
+            return p;
+        }
+        return try this.scanner.nextToken();
     }
 
     pub fn consume(self: *@This(), tk: TokenType, e: ParseError) ParseError!void {
-        if (self.curr.kind == tk) {
-            try self.advance();
-            return;
+        var nt = try this.nextToken();
+        if (nt.kind != tk) {
+            return e;
         }
-        return e;
     }
 
     pub fn program(self: *@This()) ParseError!void {}
@@ -81,19 +91,21 @@ const Parser = struct {
     pub fn expression(self: *@This()) ParseError!void {
         try self.parsePrecedence(.ASSIGNMENT);
     }
+
     pub fn parsePrecedence(self: *@This(), prec: Precedence) ParseError!void {
-        try self.advance();
-        const preFn: ParseFn = getRule(self.prev.kind).prefix orelse return error.ExpectedExpression;
+        var curr = try self.peekToken();
+        const preFn: ParseFn = getRule(curr.kind).prefix orelse return error.ExpectedExpression;
         try preFn(self);
+        curr = try self.peekToken();
         while (@enumToInt(prec) <= @enumToInt(getRule(self.curr.kind).precedence)) {
-            try self.advance();
-            const inFn: ParseFn = getRule(self.prev.kind).infix orelse return error.ExpectedInfix;
+            curr = self.peekToken();
+            const inFn: ParseFn = getRule(curr.kind).infix orelse return error.ExpectedInfix;
             try inFn(self);
         }
     }
 
     pub fn literal(self: *@This()) ParseError!void {
-        switch (self.prev.kind) {
+        switch (self.takeToken()) {
             .FALSE => try self.chk.addOp(.FALSE),
             .TRUE => try self.chk.addOp(.TRUE),
             .NIL => try self.chk.addOp(.NIL),
@@ -102,6 +114,7 @@ const Parser = struct {
     }
 
     pub fn grouping(self: *@This()) ParseError!void {
+        //CONSIDERtry self.consume(.LEFT_PAREN, error.ExpectedLeftParen);
         try self.expression();
         try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
     }
