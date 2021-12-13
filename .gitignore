@@ -1,3 +1,5 @@
 zig-cache
 zig-cache/**/*
+out
+out/**/*
 main

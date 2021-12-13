@@ -32,7 +32,7 @@ const ParseError = error{
 //TODO fix to not just handle expressions
 pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
     var ch = chunk.Chunk.init(a);
-    defer ch.deinit();
+    defer ch.deinit(a);
     var p: Parser = try Parser.init(s, a, &ch);
     try p.expression();
     try ch.addOp(.RETURN);
@@ -199,10 +199,11 @@ fn getRule(tk: TokenType) ParseRule {
 }
 
 test "can compile something" {
-    var gpa = GPAlloc{};
+    var alloc = std.testing.allocator;
     const s = "print \"hello\"";
-    var ch = chunk.Chunk.init(&gpa.allocator);
-    try compile(s, &gpa.allocator, &ch);
+    var ch = chunk.Chunk.init(alloc);
+    defer ch.deinit(alloc);
+    try compile(s, alloc, &ch);
 }
 
 test "rule table functions" {
@@ -210,20 +211,18 @@ test "rule table functions" {
 }
 
 test "compiles and runs" {
-    var gpa = GPAlloc{};
-    var res = try compileAndRun("4 + 5 - (3* 2)", &gpa.allocator);
+    var alloc = std.testing.allocator;
+    var res = try compileAndRun("4 + 5 - (3* 2)", alloc);
     try expectEqual(res, .{ .NUMBER = 3 });
 }
 
 test "compile and run bool" {
-    var gpa = GPAlloc{};
-    var res = try compileAndRun("!(3-3)", &gpa.allocator);
+    var res = try compileAndRun("!(3-3)", std.testing.allocator);
     try expectEqual(res, value.Value{ .BOOL = true });
 }
 
 test "bools equality" {
-    var gpa = GPAlloc{};
-    var res = try compileAndRun("(4 + 6 > 3 + 6)", &gpa.allocator);
+    var res = try compileAndRun("(4 + 6 > 3 + 6)", std.testing.allocator);
     //std.debug.print("bools eq : {}", .{res});
 
     const v = value.Value{ .BOOL = true };
@@ -231,10 +230,10 @@ test "bools equality" {
 }
 
 test "string equality" {
-    var gpa = GPAlloc{};
+    var alloc = std.testing.allocator;
     var res = try compileAndRun(
         \\"hello" == ("hel" + "lo")
-    , &gpa.allocator);
+    , alloc);
     //std.debug.print("HELLO  eq : {s}\n", .{res.asStr()});
 
     const v = value.Value{ .BOOL = true };

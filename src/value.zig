@@ -26,6 +26,13 @@ pub const Value = union(ValueType) {
         };
     }
 
+    pub fn deinit(this: @This(), alloc: *std.mem.Allocator) void {
+        switch (this) {
+            .OBJ => |v| v.deinit(alloc),
+            else => {},
+        }
+    }
+
     pub fn equal(a: @This(), b: @This()) ValueError!bool {
         switch (a) {
             .BOOL => |a_bool| switch (b) {
@@ -102,6 +109,7 @@ pub const Obj = struct {
 
     pub fn deinit(this: *@This(), alloc: *std.mem.Allocator) void {
         this.data.deinit(alloc);
+        alloc.destroy(this);
     }
 };
 

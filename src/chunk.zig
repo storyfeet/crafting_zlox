@@ -62,7 +62,10 @@ pub const Chunk = struct {
         }
     }
 
-    pub fn deinit(ch: Chunk) void {
+    pub fn deinit(ch: Chunk, alloc: *std.mem.Allocator) void {
+        for (ch.consts.items) |c| {
+            c.deinit(alloc);
+        }
         ch.consts.deinit();
         ch.ins.deinit();
         ch.lines.deinit();
