@@ -50,8 +50,7 @@ const Parser = struct {
     pub fn init(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !@This() {
         var sc = scanner.Tokenizer.init(s);
         return Parser{
-            .prev = undefined,
-            .curr = try sc.nextToken(),
+            .peek = null,
             .scanner = sc,
             .chk = ch,
             .alloc = alloc,
@@ -76,17 +75,33 @@ const Parser = struct {
     }
 
     pub fn consume(self: *@This(), tk: TokenType, e: ParseError) ParseError!void {
-        var nt = try this.nextToken();
+        var nt = try self.takeToken();
         if (nt.kind != tk) {
             return e;
         }
     }
 
-    pub fn program(self: *@This()) ParseError!void {}
+    pub fn program(self: *@This()) ParseError!void {
+        var curr = self.peekToken();
+        while (curr != Token.EOF) {
+            try self.declaration();
+            curr = self.peekToken();
+        }
+    }
 
-    pub fn expression(self: *@This()) ParseError!void {}
+    pub fn declaration(self: *@This()) ParseError!void {
+        try self.statement();
+    }
+    pub fn statement(self: *@This()) ParseError!void {
+        var curr = try self.takeToken();
+        switch (curr.kind) {
+            .Print => {
+                self.expression();
+                //TODO push print command,
 
-    pub fn statement(self: *@This()) ParseError!void {}
+            },
+        }
+    }
 
     pub fn expression(self: *@This()) ParseError!void {
         try self.parsePrecedence(.ASSIGNMENT);
@@ -97,15 +112,16 @@ const Parser = struct {
         const preFn: ParseFn = getRule(curr.kind).prefix orelse return error.ExpectedExpression;
         try preFn(self);
         curr = try self.peekToken();
-        while (@enumToInt(prec) <= @enumToInt(getRule(self.curr.kind).precedence)) {
-            curr = self.peekToken();
+        while (@enumToInt(prec) <= @enumToInt(getRule(curr.kind).precedence)) {
             const inFn: ParseFn = getRule(curr.kind).infix orelse return error.ExpectedInfix;
             try inFn(self);
+            curr = try self.peekToken();
         }
     }
 
     pub fn literal(self: *@This()) ParseError!void {
-        switch (self.takeToken()) {
+        var curr = try self.takeToken();
+        switch (curr.kind) {
             .FALSE => try self.chk.addOp(.FALSE),
             .TRUE => try self.chk.addOp(.TRUE),
             .NIL => try self.chk.addOp(.NIL),
@@ -114,15 +130,15 @@ const Parser = struct {
     }
 
     pub fn grouping(self: *@This()) ParseError!void {
-        //CONSIDERtry self.consume(.LEFT_PAREN, error.ExpectedLeftParen);
+        self.peek = null;
         try self.expression();
         try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
     }
 
     pub fn unary(self: *@This()) ParseError!void {
-        const opType = self.prev.kind;
+        const op = try self.takeToken();
         try self.expression();
-        switch (opType) {
+        switch (op.kind) {
             .MINUS => try self.chk.addOp(.NEGATE),
             .BANG => try self.chk.addOp(.NOT),
             else => return error.ExpectedMinus,
@@ -130,10 +146,10 @@ const Parser = struct {
     }
 
     pub fn binary(self: *@This()) ParseError!void {
-        const opType = self.prev.kind;
-        const rule = getRule(opType);
+        const op = try self.takeToken();
+        const rule = getRule(op.kind);
         try self.parsePrecedence(rule.precedence.inc());
-        switch (opType) {
+        switch (op.kind) {
             .PLUS => try self.chk.addOp(.ADD),
             .MINUS => try self.chk.addOp(.SUB),
             .STAR => try self.chk.addOp(.MUL),
@@ -158,14 +174,15 @@ const Parser = struct {
     }
 
     pub fn number(self: *@This()) ParseError!void {
-        var s = self.scanner.tokenStr(self.prev);
-        //std.debug.print("{s}", .{s});
+        var curr = try self.takeToken();
+        var s = self.scanner.tokenStr(curr);
         var val = try std.fmt.parseFloat(f64, s);
         try self.chk.addOp(chunk.OpData{ .CONSTANT = .{ .NUMBER = val } });
     }
 
     pub fn string(self: *@This()) ParseError!void {
-        var s_orig = self.scanner.tokenStr(self.prev);
+        var curr = try self.takeToken();
+        var s_orig = self.scanner.tokenStr(curr);
         const s_copy: []u8 = try self.alloc.alloc(u8, s_orig.len - 2);
         std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 1]);
         const ob: *value.Obj = try self.alloc.create(Obj);
