@@ -78,6 +78,15 @@ pub const Value = union(ValueType) {
             else => return null,
         }
     }
+
+    pub fn printTo(self: @This(), writer: anytype) !void {
+        switch (self) {
+            .OBJ => |o| try o.printTo(writer),
+            .BOOL => |t| writer.print("{}", .{t}),
+            .NIL => writer.print("nil", .{}),
+            .NUMBER => |n| writer.print("{}", .{n}),
+        }
+    }
 };
 
 pub const ObjType = enum(u4) {
@@ -105,6 +114,12 @@ pub const Obj = struct {
 
     pub fn greater(a: *@This(), b: *@This()) !bool {
         return false; //TODO
+    }
+
+    pub fn printTo(this: *@This(), writer: anytype) !void {
+        switch (this.data) {
+            .STR => |s| writer.print("{s}", .{s}),
+        }
     }
 
     pub fn deinit(this: *@This(), alloc: *std.mem.Allocator) void {

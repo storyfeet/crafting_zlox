@@ -26,8 +26,21 @@ const ParseError = error{
     ExpectedMathOp,
     ExpectedExpression,
     ExpectedInfix,
+    ExpectedStatement,
+    ExpectedSemicolon,
     OutOfMemory,
 } || scanner.ScanError;
+
+pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
+    var ch = chunk.Chunk.init(a);
+    defer ch.deinit(a);
+    var p: Parser = try Parser.init(s, a, &ch);
+    try p.program();
+    try ch.addOp(.EXIT);
+    var theVm = vm.VM.init(&ch, a);
+    defer theVm.deinit();
+    _ = try theVm.run();
+}
 
 //TODO fix to not just handle expressions
 pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
@@ -82,10 +95,10 @@ const Parser = struct {
     }
 
     pub fn program(self: *@This()) ParseError!void {
-        var curr = self.peekToken();
-        while (curr != Token.EOF) {
+        var curr = try self.peekToken();
+        while (curr.kind != .EOF) {
             try self.declaration();
-            curr = self.peekToken();
+            curr = try self.peekToken();
         }
     }
 
@@ -95,16 +108,20 @@ const Parser = struct {
     pub fn statement(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
-            .Print => {
-                self.expression();
-                //TODO push print command,
-
-            },
+            .PRINT => try self.printStatement(),
+            else => return error.ExpectedStatement,
         }
     }
 
     pub fn expression(self: *@This()) ParseError!void {
         try self.parsePrecedence(.ASSIGNMENT);
+    }
+
+    pub fn printStatement(self: *@This()) ParseError!void {
+        self.peek = null;
+        try self.expression();
+        try self.consume(.SEMICOLON, error.ExpectedSemicolon);
+        try self.chk.addOp(.PRINT);
     }
 
     pub fn parsePrecedence(self: *@This(), prec: Precedence) ParseError!void {

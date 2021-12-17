@@ -7,11 +7,11 @@ const SYMBOL = "@{}()[]\\\"*+-/?<>|%";
 const SPACE = "'\n\r\t ";
 const SYM_SPACE = SYMBOL ++ SPACE;
 
-pub fn readFile(path: [*]const u8, alloc: *std.mem.Allocator) ![]u8 {
+pub fn readFile(path: []const u8, alloc: *std.mem.Allocator) ![]u8 {
     const f: fs.File = try fs.cwd().openFile(path, .{ .read = true });
     defer f.close();
 
-    return try f.readToEndAlloc(alloc);
+    return try f.readToEndAlloc(alloc, 1_000_000);
 }
 
 pub const TokenType = enum { LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, COMMA, DOT, MINUS, PLUS, SEMICOLON, SLASH, STAR,
@@ -198,6 +198,7 @@ fn identTokenType(s: []const u8) TokenType {
     if (std.mem.eql(u8, "true", s)) return TokenType.TRUE;
     if (std.mem.eql(u8, "var", s)) return TokenType.VAR;
     if (std.mem.eql(u8, "while", s)) return TokenType.WHILE;
+    if (std.mem.eql(u8, "print", s)) return TokenType.PRINT;
     if (std.mem.eql(u8, "error", s)) return TokenType.ERROR;
     if (std.mem.eql(u8, "eof", s)) return TokenType.EOF;
     return TokenType.IDENT;

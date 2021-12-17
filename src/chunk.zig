@@ -5,6 +5,7 @@ const Value = value.Value;
 
 pub const OpCode = enum(u8) {
     RETURN,
+    EXIT,
     CONSTANT,
     NEGATE,
     ADD,
@@ -18,6 +19,7 @@ pub const OpCode = enum(u8) {
     EQUAL,
     GREATER,
     LESS,
+    PRINT,
 };
 
 pub const OpData = union(OpCode) {
@@ -35,6 +37,8 @@ pub const OpData = union(OpCode) {
     EQUAL: void,
     GREATER: void,
     LESS: void,
+    PRINT: void,
+    EXIT: void,
 };
 
 pub const Chunk = struct {
@@ -70,8 +74,6 @@ pub const Chunk = struct {
         ch.ins.deinit();
         ch.lines.deinit();
     }
-
-    pub fn run(ch: *Chunk) void {}
 };
 
 pub fn do_thing() void {

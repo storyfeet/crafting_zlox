@@ -70,6 +70,9 @@ pub const VM = struct {
     ) VMError!Value {
         while (true) {
             switch (self.readInstruction()) {
+                .EXIT => {
+                    return Value{ .NUMBER = 0 };
+                },
                 .RETURN => {
                     var cval = self.readStack();
                     std.debug.print("RETURN = {}\n", .{cval});
@@ -123,6 +126,11 @@ pub const VM = struct {
                 },
                 .LESS => {
                     try self.stack.append(try self.boolOp(Value.less));
+                },
+                .PRINT => {
+                    const top = self.readStack();
+                    try top.printTo(std.debug);
+                    std.debug.print("\n", .{});
                 },
             }
         }
