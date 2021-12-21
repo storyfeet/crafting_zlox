@@ -13,34 +13,6 @@ const Obj = value.Obj;
 const ObjData = value.ObjData;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
-pub fn main() !void {
-    var gpa = GPAlloc{};
-    var chk = chunk.Chunk.init(&gpa.allocator);
-    defer chk.deinit();
-    try chk.addOp(OpData{ .CONSTANT = 3 });
-    try chk.addOp(OpData{ .CONSTANT = 4 });
-    try chk.addOp(OpData.NEGATE);
-    try chk.addOp(OpData.ADD);
-    try chk.addOp(OpData{ .CONSTANT = 7 });
-    try chk.addOp(OpData.DIV);
-    try chk.addOp(OpData.RETURN);
-
-    var vm: VM = VM.init(&chk, &gpa.allocator);
-    defer vm.deinit();
-    var res = vm.run();
-
-    if (res) |_| {
-        std.debug.print("RUN OK\n", .{});
-    } else |err| {
-        switch (err) {
-            error.COMPILE_ERROR => std.debug.print("COMPILE ERROR {}\n", .{err}),
-            error.RUN_ERROR => std.debug.print("RUN ERROR {}\n", .{err}),
-            error.OutOfMemory => std.debug.print("Out of Memory {}\n", .{err}),
-        }
-        return;
-    }
-}
-
 pub const VMError = error{
     COMPILE_ERROR,
     RUN_ERROR,
@@ -131,6 +103,9 @@ pub const VM = struct {
                     const top = self.readStack();
                     try top.printTo(std.debug);
                     std.debug.print("\n", .{});
+                },
+                .POP => {
+                    _ = self.readStack();
                 },
             }
         }

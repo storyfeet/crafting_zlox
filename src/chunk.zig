@@ -20,25 +20,7 @@ pub const OpCode = enum(u8) {
     GREATER,
     LESS,
     PRINT,
-};
-
-pub const OpData = union(OpCode) {
-    RETURN: void,
-    CONSTANT: Value,
-    NEGATE: void,
-    ADD: void,
-    SUB: void,
-    MUL: void,
-    DIV: void,
-    NIL: void,
-    FALSE: void,
-    TRUE: void,
-    NOT: void,
-    EQUAL: void,
-    GREATER: void,
-    LESS: void,
-    PRINT: void,
-    EXIT: void,
+    POP,
 };
 
 pub const Chunk = struct {
@@ -54,16 +36,15 @@ pub const Chunk = struct {
         };
     }
 
-    pub fn addOp(ch: *Chunk, od: OpData) !void {
-        switch (od) {
-            OpData.CONSTANT => |c| {
-                var pos: u8 = @intCast(u8, ch.consts.items.len);
-                try ch.consts.append(c);
-                try ch.ins.append(@enumToInt(od));
-                try ch.ins.append(pos);
-            },
-            else => try ch.ins.append(@enumToInt(od)),
-        }
+    pub fn addConst(ch: *Chunk, v: Value) !void {
+        var pos: u8 = @intCast(u8, ch.consts.items.len);
+        try ch.consts.append(v);
+        try ch.ins.append(@enumToInt(OpCode.CONSTANT));
+        try ch.ins.append(pos);
+    }
+
+    pub fn addOp(ch: *Chunk, od: OpCode) !void {
+        try ch.ins.append(@enumToInt(od));
     }
 
     pub fn deinit(ch: Chunk, alloc: *std.mem.Allocator) void {

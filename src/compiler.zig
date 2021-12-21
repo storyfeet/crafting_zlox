@@ -42,8 +42,7 @@ pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
     _ = try theVm.run();
 }
 
-//TODO fix to not just handle expressions
-pub fn compileAndRun(s: []const u8, a: *std.mem.Allocator) !value.Value {
+pub fn compileAndRunExpression(s: []const u8, a: *std.mem.Allocator) !value.Value {
     var ch = chunk.Chunk.init(a);
     defer ch.deinit(a);
     var p: Parser = try Parser.init(s, a, &ch);
@@ -109,12 +108,21 @@ const Parser = struct {
         var curr = try self.takeToken();
         switch (curr.kind) {
             .PRINT => try self.printStatement(),
-            else => return error.ExpectedStatement,
+            else => {
+                self.peek = curr;
+                try self.expressionStatement();
+            },
         }
     }
 
     pub fn expression(self: *@This()) ParseError!void {
         try self.parsePrecedence(.ASSIGNMENT);
+    }
+
+    pub fn expressionStatement(self: *@This()) ParseError!void {
+        try self.expression();
+        try self.consume(.SEMICOLON, error.ExpectedSemicolon);
+        try self.chk.addOp(.POP);
     }
 
     pub fn printStatement(self: *@This()) ParseError!void {
@@ -194,7 +202,7 @@ const Parser = struct {
         var curr = try self.takeToken();
         var s = self.scanner.tokenStr(curr);
         var val = try std.fmt.parseFloat(f64, s);
-        try self.chk.addOp(chunk.OpData{ .CONSTANT = .{ .NUMBER = val } });
+        try self.chk.addConst(.{ .NUMBER = val });
     }
 
     pub fn string(self: *@This()) ParseError!void {
@@ -205,7 +213,7 @@ const Parser = struct {
         const ob: *value.Obj = try self.alloc.create(Obj);
         ob.* = .{ .data = .{ .STR = s_copy } };
         const val = value.Value{ .OBJ = ob };
-        try self.chk.addOp(chunk.OpData{ .CONSTANT = val });
+        try self.chk.addConst(val);
     }
 };
 
@@ -265,17 +273,17 @@ test "rule table functions" {
 
 test "compiles and runs" {
     var alloc = std.testing.allocator;
-    var res = try compileAndRun("4 + 5 - (3* 2)", alloc);
+    var res = try compileAndRunExpression("4 + 5 - (3* 2)", alloc);
     try expectEqual(res, .{ .NUMBER = 3 });
 }
 
 test "compile and run bool" {
-    var res = try compileAndRun("!(3-3)", std.testing.allocator);
+    var res = try compileAndRunExpression("!(3-3)", std.testing.allocator);
     try expectEqual(res, value.Value{ .BOOL = true });
 }
 
 test "bools equality" {
-    var res = try compileAndRun("(4 + 6 > 3 + 6)", std.testing.allocator);
+    var res = try compileAndRunExpression("(4 + 6 > 3 + 6)", std.testing.allocator);
     //std.debug.print("bools eq : {}", .{res});
 
     const v = value.Value{ .BOOL = true };
@@ -284,7 +292,7 @@ test "bools equality" {
 
 test "string equality" {
     var alloc = std.testing.allocator;
-    var res = try compileAndRun(
+    var res = try compileAndRunExpression(
         \\"hello" == ("hel" + "lo")
     , alloc);
     //std.debug.print("HELLO  eq : {s}\n", .{res.asStr()});
