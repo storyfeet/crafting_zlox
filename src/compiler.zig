@@ -28,6 +28,7 @@ const ParseError = error{
     ExpectedInfix,
     ExpectedStatement,
     ExpectedSemicolon,
+    ExpectedAssign,
     OutOfMemory,
 } || scanner.ScanError;
 
@@ -102,8 +103,16 @@ const Parser = struct {
     }
 
     pub fn declaration(self: *@This()) ParseError!void {
-        try self.statement();
+        var curr = try self.takeToken();
+        switch (curr.kind) {
+            .VAR => self.varDeclaration(),
+            else => {
+                self.peek = curr;
+                try self.statement();
+            },
+        }
     }
+
     pub fn statement(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
@@ -113,6 +122,24 @@ const Parser = struct {
                 try self.expressionStatement();
             },
         }
+    }
+
+    pub fn varDeclaration(self: *@This()) ParseError!void {
+        self.peek = null;
+        const nameTok = try self.takeToken();
+        if (nameTok.kind != .IDENT) {
+            return error.ExpectedIdent;
+        }
+        const eqTok = try self.takeToken();
+        switch (eqTok.kind) {
+            .EQUAL => try self.expression(),
+            .SEMICOLON => {
+                try self.chk.addOp(.NIL);
+                return;
+            },
+            else => return ParseError.ExpectedEqual,
+        }
+        //TODO finish
     }
 
     pub fn expression(self: *@This()) ParseError!void {
