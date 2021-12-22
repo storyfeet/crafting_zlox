@@ -27,8 +27,8 @@ pub const Value = union(ValueType) {
     }
 
     pub fn fromStr(s_orig: []const u8, alloc: *std.mem.Allocator) !@This() {
-        const s_copy: []u8 = try alloc.alloc(u8, s_orig.len - 2);
-        std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 1]);
+        const s_copy: []u8 = try alloc.alloc(u8, s_orig.len);
+        std.mem.copy(u8, s_copy, s_orig);
         const ob = try alloc.create(Obj);
         ob.* = Obj{ .data = .{ .STR = s_copy } };
         return Value{ .OBJ = ob };

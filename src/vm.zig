@@ -13,10 +13,14 @@ const Obj = value.Obj;
 const ObjData = value.ObjData;
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
+const VarMap = std.ArrayHashMap([]const u8, Value, std.array_hash_map.StringContext, false);
+
 pub const VMError = error{
     COMPILE_ERROR,
     RUN_ERROR,
     MATH_ON_NON_NUMBER,
+    NON_STRING_GLOBAL,
+    GLOBAL_NON_EXISTENT,
     OutOfMemory,
     NegatingObject,
 } || value.ValueError;
@@ -27,6 +31,7 @@ pub const VM = struct {
     stack: std.ArrayList(Value),
     freelist: DropList(*Obj),
     alloc: *std.mem.Allocator,
+    globals: VarMap,
     pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
         return VM{
             .chunk = ch,
@@ -34,6 +39,7 @@ pub const VM = struct {
             .stack = std.ArrayList(Value).init(alloc),
             .alloc = alloc,
             .freelist = DropList(*Obj).init(alloc),
+            .globals = VarMap.init(alloc),
         };
     }
 
@@ -107,6 +113,18 @@ pub const VM = struct {
                 .POP => {
                     _ = self.readStack();
                 },
+                .DEFINE_GLOBAL => {
+                    const cval = self.readConst();
+                    const s = cval.asStr() orelse return error.NON_STRING_GLOBAL;
+                    const top = self.readStack();
+                    try self.globals.put(s, top);
+                },
+                .GET_GLOBAL => {
+                    const cval = self.readConst();
+                    const s = cval.asStr() orelse return error.NON_STRING_GLOBAL;
+                    const gval = self.globals.get(s) orelse return error.GLOBAL_NON_EXISTENT;
+                    try self.stack.append(gval);
+                },
             }
         }
     }
@@ -142,6 +160,7 @@ pub const VM = struct {
         self.stack.deinit();
 
         self.freelist.deinit(self.alloc, Obj.deinit);
+        self.globals.deinit();
     }
 
     fn boolOp(self: *VM, comptime op: fn (Value, Value) value.ValueError!bool) value.ValueError!Value {

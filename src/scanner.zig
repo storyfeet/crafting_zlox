@@ -3,7 +3,7 @@ const fs = std.fs;
 const expect = std.testing.expect;
 //const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
-const SYMBOL = "@{}()[]\\\"*+-/?<>|%";
+const SYMBOL = "@{}()[]\\\"*+-/?<>|%;";
 const SPACE = "'\n\r\t ";
 const SYM_SPACE = SYMBOL ++ SPACE;
 

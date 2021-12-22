@@ -8,6 +8,7 @@ const TokenType = scanner.TokenType;
 const vm = @import("vm.zig");
 const Obj = value.Obj;
 const Value = value.Value;
+const assert = std.debug.assert;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -28,7 +29,8 @@ const ParseError = error{
     ExpectedInfix,
     ExpectedStatement,
     ExpectedSemicolon,
-    ExpectedAssign,
+    ExpectedEquals,
+    ExpectedIdent,
     OutOfMemory,
 } || scanner.ScanError;
 
@@ -105,7 +107,7 @@ const Parser = struct {
     pub fn declaration(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
-            .VAR => self.varDeclaration(),
+            .VAR => try self.varDeclaration(),
             else => {
                 self.peek = curr;
                 try self.statement();
@@ -135,17 +137,19 @@ const Parser = struct {
             .EQUAL => try self.expression(),
             .SEMICOLON => {
                 try self.chk.addOp(.NIL);
-                try defineVariable(nameTok);
+                try self.defineVariable(nameTok);
                 return;
             },
-            else => return ParseError.ExpectedEqual,
+            else => return ParseError.ExpectedEquals,
         }
         try self.consume(.SEMICOLON, error.ExpectedSemicolon);
-        try defineVariable(nameTok);
+        try self.defineVariable(nameTok);
     }
 
     pub fn defineVariable(self: *@This(), tok: Token) ParseError!void {
-        tname = self.scanner.tokenStr(tok);
+        const tname = self.scanner.tokenStr(tok);
+        var tval = try Value.fromStr(tname, self.alloc);
+        try self.chk.addConst(.DEFINE_GLOBAL, tval);
     }
 
     pub fn expression(self: *@This()) ParseError!void {
@@ -161,6 +165,10 @@ const Parser = struct {
     pub fn printStatement(self: *@This()) ParseError!void {
         self.peek = null;
         try self.expression();
+        // -- find out what next token really is.
+        //var pk = try self.peekToken();
+        //std.debug.print("{}\n", .{pk});
+        // --
         try self.consume(.SEMICOLON, error.ExpectedSemicolon);
         try self.chk.addOp(.PRINT);
     }
@@ -241,8 +249,20 @@ const Parser = struct {
     pub fn string(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         var s_orig = self.scanner.tokenStr(curr);
-        var val = try Value.fromStr(s_orig, self.alloc);
+        //remove quotes
+        var val = try Value.fromStr(s_orig[1 .. s_orig.len - 1], self.alloc);
         try self.chk.addConst(.CONSTANT, val);
+    }
+
+    pub fn variable(self: *@This()) ParseError!void {
+        try self.namedVariable();
+    }
+    pub fn namedVariable(self: *@This()) ParseError!void {
+        var curr = try self.takeToken();
+        assert(curr.kind == .IDENT);
+        var name = self.scanner.tokenStr(curr);
+        var val = try Value.fromStr(name, self.alloc);
+        try self.chk.addConst(.GET_GLOBAL, val);
     }
 };
 
@@ -274,17 +294,18 @@ const ParseRule = struct {
 
 fn getRule(tk: TokenType) ParseRule {
     return switch (tk) {
-        .LEFT_PAREN => ParseRule{ .prefix = Parser.grouping, .infix = null, .precedence = .NONE },
-        .MINUS => ParseRule{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .TERM },
-        .PLUS => ParseRule{ .infix = Parser.binary, .precedence = .TERM },
-        .STAR, .SLASH => ParseRule{ .infix = Parser.binary, .precedence = .FACTOR },
-        .BANG => ParseRule{ .prefix = Parser.unary, .precedence = .NONE },
-        .NUMBER => ParseRule{ .prefix = Parser.number },
-        .FALSE, .TRUE, .NIL => ParseRule{ .prefix = Parser.literal, .precedence = .NONE },
-        .GREATER, .LESS, .LESS_EQUAL, .GREATER_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .COMPARISON },
-        .EQUAL_EQUAL => ParseRule{ .infix = Parser.binary, .precedence = .EQUALITY },
-        .STRING => ParseRule{ .prefix = Parser.string },
-        else => ParseRule{},
+        .LEFT_PAREN => .{ .prefix = Parser.grouping, .infix = null },
+        .MINUS => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .TERM },
+        .PLUS => .{ .infix = Parser.binary, .precedence = .TERM },
+        .STAR, .SLASH => .{ .infix = Parser.binary, .precedence = .FACTOR },
+        .BANG => .{ .prefix = Parser.unary, .precedence = .NONE },
+        .NUMBER => .{ .prefix = Parser.number },
+        .FALSE, .TRUE, .NIL => .{ .prefix = Parser.literal, .precedence = .NONE },
+        .GREATER, .LESS, .LESS_EQUAL, .GREATER_EQUAL => .{ .infix = Parser.binary, .precedence = .COMPARISON },
+        .EQUAL_EQUAL => .{ .infix = Parser.binary, .precedence = .EQUALITY },
+        .STRING => .{ .prefix = Parser.string },
+        .IDENT => .{ .prefix = Parser.variable },
+        else => .{},
     };
 }
 

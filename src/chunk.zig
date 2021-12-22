@@ -21,6 +21,8 @@ pub const OpCode = enum(u8) {
     LESS,
     PRINT,
     POP,
+    DEFINE_GLOBAL,
+    GET_GLOBAL,
 };
 
 pub const Chunk = struct {
