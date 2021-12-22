@@ -36,10 +36,10 @@ pub const Chunk = struct {
         };
     }
 
-    pub fn addConst(ch: *Chunk, v: Value) !void {
+    pub fn addConst(ch: *Chunk, op: OpCode, v: Value) !void {
         var pos: u8 = @intCast(u8, ch.consts.items.len);
         try ch.consts.append(v);
-        try ch.ins.append(@enumToInt(OpCode.CONSTANT));
+        try ch.ins.append(@enumToInt(op));
         try ch.ins.append(pos);
     }
 

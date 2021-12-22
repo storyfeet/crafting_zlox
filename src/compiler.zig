@@ -135,11 +135,17 @@ const Parser = struct {
             .EQUAL => try self.expression(),
             .SEMICOLON => {
                 try self.chk.addOp(.NIL);
+                try defineVariable(nameTok);
                 return;
             },
             else => return ParseError.ExpectedEqual,
         }
-        //TODO finish
+        try self.consume(.SEMICOLON, error.ExpectedSemicolon);
+        try defineVariable(nameTok);
+    }
+
+    pub fn defineVariable(self: *@This(), tok: Token) ParseError!void {
+        tname = self.scanner.tokenStr(tok);
     }
 
     pub fn expression(self: *@This()) ParseError!void {
@@ -229,18 +235,14 @@ const Parser = struct {
         var curr = try self.takeToken();
         var s = self.scanner.tokenStr(curr);
         var val = try std.fmt.parseFloat(f64, s);
-        try self.chk.addConst(.{ .NUMBER = val });
+        try self.chk.addConst(.CONSTANT, .{ .NUMBER = val });
     }
 
     pub fn string(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         var s_orig = self.scanner.tokenStr(curr);
-        const s_copy: []u8 = try self.alloc.alloc(u8, s_orig.len - 2);
-        std.mem.copy(u8, s_copy, s_orig[1 .. s_orig.len - 1]);
-        const ob: *value.Obj = try self.alloc.create(Obj);
-        ob.* = .{ .data = .{ .STR = s_copy } };
-        const val = value.Value{ .OBJ = ob };
-        try self.chk.addConst(val);
+        var val = try Value.fromStr(s_orig, self.alloc);
+        try self.chk.addConst(.CONSTANT, val);
     }
 };
 
