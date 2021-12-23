@@ -32,6 +32,7 @@ const ParseError = error{
     ExpectedEquals,
     ExpectedIdent,
     OutOfMemory,
+    TooManyCompileErrors,
 } || scanner.ScanError;
 
 pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
@@ -56,11 +57,30 @@ pub fn compileAndRunExpression(s: []const u8, a: *std.mem.Allocator) !value.Valu
     return try theVm.run();
 }
 
+const ParseErrorData = struct {
+    err: ParseError,
+    token: Token,
+    pub fn print(self: @This()) void {
+        std.debug.print("Error {} : at {}\n\n", .{ self.err, self.token });
+    }
+};
+
 const Parser = struct {
     peek: ?Token,
     scanner: scanner.Tokenizer,
     chk: *chunk.Chunk,
     alloc: *std.mem.Allocator,
+    errors: std.ArrayList(ParseErrorData),
+
+    pub fn err(self: *@This(), e: ParseError) ParseError {
+        const edata = ParseErrorData{
+            .err = e,
+            .token = self.takeToken() catch |e3| return e3,
+        };
+        edata.print();
+        self.errors.append(edata) catch |e2| return e2;
+        return e;
+    }
 
     pub fn init(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !@This() {
         var sc = scanner.Tokenizer.init(s);
@@ -69,6 +89,7 @@ const Parser = struct {
             .scanner = sc,
             .chk = ch,
             .alloc = alloc,
+            .errors = std.ArrayList(ParseErrorData).init(alloc),
         };
     }
 
@@ -76,7 +97,7 @@ const Parser = struct {
         if (this.peek) |p| {
             return p;
         }
-        var nx = try this.scanner.nextToken();
+        var nx = this.scanner.nextToken() catch |e| return this.err(e);
         this.peek = nx;
         return nx;
     }
@@ -86,7 +107,7 @@ const Parser = struct {
             this.peek = null;
             return p;
         }
-        return try this.scanner.nextToken();
+        return this.scanner.nextToken() catch |e| return this.err(e);
     }
 
     pub fn consume(self: *@This(), tk: TokenType, e: ParseError) ParseError!void {
@@ -99,8 +120,23 @@ const Parser = struct {
     pub fn program(self: *@This()) ParseError!void {
         var curr = try self.peekToken();
         while (curr.kind != .EOF) {
-            try self.declaration();
+            self.declaration() catch |e| {
+                try self.endErrLine();
+            };
             curr = try self.peekToken();
+        }
+        if (self.errors.items.len > 0) {
+            return error.TooManyCompileErrors;
+        }
+    }
+
+    pub fn endErrLine(self: *@This()) ParseError!void {
+        while (true) {
+            var curr = try self.takeToken();
+            switch (curr.kind) {
+                .EOF, .SEMICOLON => return,
+                else => {},
+            }
         }
     }
 
@@ -130,7 +166,7 @@ const Parser = struct {
         self.peek = null;
         const nameTok = try self.takeToken();
         if (nameTok.kind != .IDENT) {
-            return error.ExpectedIdent;
+            return self.err(error.ExpectedIdent);
         }
         const eqTok = try self.takeToken();
         switch (eqTok.kind) {
@@ -140,7 +176,7 @@ const Parser = struct {
                 try self.defineVariable(nameTok);
                 return;
             },
-            else => return ParseError.ExpectedEquals,
+            else => return self.err(ParseError.ExpectedEquals),
         }
         try self.consume(.SEMICOLON, error.ExpectedSemicolon);
         try self.defineVariable(nameTok);
@@ -175,11 +211,11 @@ const Parser = struct {
 
     pub fn parsePrecedence(self: *@This(), prec: Precedence) ParseError!void {
         var curr = try self.peekToken();
-        const preFn: ParseFn = getRule(curr.kind).prefix orelse return error.ExpectedExpression;
+        const preFn: ParseFn = getRule(curr.kind).prefix orelse return self.err(error.ExpectedExpression);
         try preFn(self);
         curr = try self.peekToken();
         while (@enumToInt(prec) <= @enumToInt(getRule(curr.kind).precedence)) {
-            const inFn: ParseFn = getRule(curr.kind).infix orelse return error.ExpectedInfix;
+            const inFn: ParseFn = getRule(curr.kind).infix orelse return self.err(error.ExpectedInfix);
             try inFn(self);
             curr = try self.peekToken();
         }
@@ -207,7 +243,7 @@ const Parser = struct {
         switch (op.kind) {
             .MINUS => try self.chk.addOp(.NEGATE),
             .BANG => try self.chk.addOp(.NOT),
-            else => return error.ExpectedMinus,
+            else => return self.err(error.ExpectedMinus),
         }
     }
 
@@ -235,7 +271,7 @@ const Parser = struct {
                 try self.chk.addOp(.LESS);
                 try self.chk.addOp(.NOT);
             },
-            else => return error.ExpectedMathOp,
+            else => return self.err(error.ExpectedMathOp),
         }
     }
 
