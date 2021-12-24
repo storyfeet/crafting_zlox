@@ -21,6 +21,7 @@ pub const VMError = error{
     MATH_ON_NON_NUMBER,
     NON_STRING_GLOBAL,
     GLOBAL_NON_EXISTENT,
+    GLOBAL_NON_EXISTENT_NOT_SET,
     OutOfMemory,
     NegatingObject,
 } || value.ValueError;
@@ -125,6 +126,15 @@ pub const VM = struct {
                     const gval = self.globals.get(s) orelse return error.GLOBAL_NON_EXISTENT;
                     try self.stack.append(gval);
                 },
+                .SET_GLOBAL => {
+                    const cval = self.readConst();
+                    const k = cval.asStr() orelse return error.NON_STRING_GLOBAL;
+                    const v = self.peekStack();
+                    var prev = try self.globals.fetchPut(k, v);
+                    if (prev == null) {
+                        return error.GLOBAL_NON_EXISTENT_NOT_SET;
+                    }
+                },
             }
         }
     }
@@ -154,6 +164,10 @@ pub const VM = struct {
         var res = self.stack.items[newlen];
         self.stack.items.len -= 1;
         return res;
+    }
+
+    fn peekStack(self: *VM) Value {
+        return self.stack.items[self.stack.items.len - 1];
     }
 
     pub fn deinit(self: *VM) void {

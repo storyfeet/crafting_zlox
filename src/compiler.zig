@@ -211,17 +211,18 @@ const Parser = struct {
 
     pub fn parsePrecedence(self: *@This(), prec: Precedence) ParseError!void {
         var curr = try self.peekToken();
+        const canAssign = @enumToInt(prec) <= @enumToInt(Precedence.ASSIGNMENT);
         const preFn: ParseFn = getRule(curr.kind).prefix orelse return self.err(error.ExpectedExpression);
-        try preFn(self);
+        try preFn(self, canAssign);
         curr = try self.peekToken();
         while (@enumToInt(prec) <= @enumToInt(getRule(curr.kind).precedence)) {
             const inFn: ParseFn = getRule(curr.kind).infix orelse return self.err(error.ExpectedInfix);
-            try inFn(self);
+            try inFn(self, canAssign);
             curr = try self.peekToken();
         }
     }
 
-    pub fn literal(self: *@This()) ParseError!void {
+    pub fn literal(self: *@This(), canAssign: bool) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
             .FALSE => try self.chk.addOp(.FALSE),
@@ -231,13 +232,13 @@ const Parser = struct {
         }
     }
 
-    pub fn grouping(self: *@This()) ParseError!void {
+    pub fn grouping(self: *@This(), canAssign: bool) ParseError!void {
         self.peek = null;
         try self.expression();
         try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
     }
 
-    pub fn unary(self: *@This()) ParseError!void {
+    pub fn unary(self: *@This(), canAssign: bool) ParseError!void {
         const op = try self.takeToken();
         try self.expression();
         switch (op.kind) {
@@ -247,7 +248,7 @@ const Parser = struct {
         }
     }
 
-    pub fn binary(self: *@This()) ParseError!void {
+    pub fn binary(self: *@This(), canAssign: bool) ParseError!void {
         const op = try self.takeToken();
         const rule = getRule(op.kind);
         try self.parsePrecedence(rule.precedence.inc());
@@ -275,14 +276,14 @@ const Parser = struct {
         }
     }
 
-    pub fn number(self: *@This()) ParseError!void {
+    pub fn number(self: *@This(), canAssign: bool) ParseError!void {
         var curr = try self.takeToken();
         var s = self.scanner.tokenStr(curr);
         var val = try std.fmt.parseFloat(f64, s);
         try self.chk.addConst(.CONSTANT, .{ .NUMBER = val });
     }
 
-    pub fn string(self: *@This()) ParseError!void {
+    pub fn string(self: *@This(), canAssign: bool) ParseError!void {
         var curr = try self.takeToken();
         var s_orig = self.scanner.tokenStr(curr);
         //remove quotes
@@ -290,15 +291,22 @@ const Parser = struct {
         try self.chk.addConst(.CONSTANT, val);
     }
 
-    pub fn variable(self: *@This()) ParseError!void {
-        try self.namedVariable();
+    pub fn variable(self: *@This(), canAssign: bool) ParseError!void {
+        try self.namedVariable(canAssign);
     }
-    pub fn namedVariable(self: *@This()) ParseError!void {
+    pub fn namedVariable(self: *@This(), canAssign: bool) ParseError!void {
         var curr = try self.takeToken();
         assert(curr.kind == .IDENT);
         var name = self.scanner.tokenStr(curr);
         var val = try Value.fromStr(name, self.alloc);
-        try self.chk.addConst(.GET_GLOBAL, val);
+        var eqTok = try self.peekToken();
+        if (eqTok.kind == .EQUAL and canAssign) {
+            self.peek = null;
+            try self.expression();
+            try self.chk.addConst(.SET_GLOBAL, val);
+        } else {
+            try self.chk.addConst(.GET_GLOBAL, val);
+        }
     }
 };
 
@@ -320,7 +328,7 @@ const Precedence = enum(u8) {
     }
 };
 
-const ParseFn = fn (*Parser) ParseError!void;
+const ParseFn = fn (*Parser, bool) ParseError!void;
 
 const ParseRule = struct {
     prefix: ?ParseFn = null,
