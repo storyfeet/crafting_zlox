@@ -40,8 +40,17 @@ pub const Chunk = struct {
     }
 
     pub fn addConst(ch: *Chunk, op: OpCode, v: Value) !void {
-        var pos: u8 = @intCast(u8, ch.consts.items.len);
-        try ch.consts.append(v);
+        var found: ?usize = null;
+        for (ch.consts.items) |cv, i| {
+            if (cv.equal(v) catch false) {
+                found = i;
+                break;
+            }
+        }
+        var pos: u8 = @intCast(u8, found orelse ch.consts.items.len);
+        if (found == null) {
+            try ch.consts.append(v);
+        }
         try ch.ins.append(@enumToInt(op));
         try ch.ins.append(pos);
     }
