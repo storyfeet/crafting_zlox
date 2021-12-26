@@ -28,7 +28,9 @@ const ParseError = error{
     ExpectedEquals,
     ExpectedIdent,
     OutOfMemory,
+    TooManyLocalVariables,
     TooManyCompileErrors,
+    LocalAlreadyExists,
 } || scanner.ScanError;
 
 pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
@@ -72,13 +74,13 @@ const Local = struct {
 const Scope = struct {
     prev: ?*Scope,
     locals: [256]Local,
-    localCount: u8,
-    scopeDepth: usize,
+    count: u8,
+    depth: usize,
     pub fn init(d: usize, alloc: *std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
         res.prev = null;
-        res.localCount = 0;
-        res.scopeDepth = d;
+        res.count = 0;
+        res.depth = d;
         return res;
     }
 
@@ -89,17 +91,49 @@ const Scope = struct {
     }
 
     pub fn incDepth(self: *@This()) void {
-        self.scopeDepth += 1;
+        self.depth += 1;
+    }
+
+    pub fn addLocal(self: *@This(), name: []const u8) ParseError!void {
+        if (self.count == 255) return error.TooManyLocalVariables;
+        var loc = &self.locals[self.count];
+        loc.name = name;
+        loc.depth = self.depth;
+        self.count += 1;
     }
 
     pub fn decDepth(self: *@This()) void {
-        self.scopeDepth -= 1;
+        self.depth -= 1;
     }
     pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
         if (self.prev) |p| {
             p.deinit(alloc);
         }
         alloc.destroy(self);
+    }
+
+    pub fn levelLocalExists(self: *@This(), s: []const u8) bool {
+        var i = self.count - 1;
+        while (i >= 0) : (i -= 1) {
+            var loc = &self.locals[i];
+            if (loc.depth != -1 and loc.depth < self.depth) {
+                return false;
+            }
+            if (std.mem.eql(u8, loc.name, s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn findLocal(self: *@This(), s: []const u8) ?u8 {
+        var i = self.count - 1;
+        while (i >= 0) : (i -= 1) {
+            if (std.mem.eql(u8, &self.locals[i], s)) {
+                return i;
+            }
+        }
+        return null;
     }
 };
 
@@ -247,6 +281,12 @@ const Parser = struct {
     pub fn defineVariable(self: *@This(), tok: Token) ParseError!void {
         const tname = self.scanner.tokenStr(tok);
         var tval = try Value.fromStr(tname, self.alloc);
+        if (self.scope.depth > 0) {
+            self.scope.addLocal(tname) catch |e| return self.err(e);
+            if (self.scope.levelLocalExists(tname)) {
+                return self.err(error.LocalAlreadyExists);
+            }
+        }
         try self.chk.addConst(.DEFINE_GLOBAL, tval);
     }
 
@@ -356,6 +396,7 @@ const Parser = struct {
     pub fn variable(self: *@This(), canAssign: bool) ParseError!void {
         try self.namedVariable(canAssign);
     }
+
     pub fn namedVariable(self: *@This(), canAssign: bool) ParseError!void {
         var curr = try self.takeToken();
         assert(curr.kind == .IDENT);
@@ -365,9 +406,13 @@ const Parser = struct {
         if (eqTok.kind == .EQUAL and canAssign) {
             self.peek = null;
             try self.expression();
-            try self.chk.addConst(.SET_GLOBAL, val);
+            if (self.scope.findLocal(name)) |loc| {
+                try self.chk.addConst(.SET_LOCAL, loc);
+            } else try self.chk.addConst(.SET_GLOBAL, val);
         } else {
-            try self.chk.addConst(.GET_GLOBAL, val);
+            if (self.scope.findLocal(name)) |loc| {
+                try self.chk.addConst(.GET_LOCAL, loc);
+            } else try self.chk.addConst(.GET_GLOBAL, val);
         }
     }
 };
