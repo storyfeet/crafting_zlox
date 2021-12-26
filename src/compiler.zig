@@ -88,6 +88,13 @@ const Scope = struct {
         return p;
     }
 
+    pub fn incDepth(self: *@This()) void {
+        self.scopeDepth += 1;
+    }
+
+    pub fn decDepth(self: *@This()) void {
+        self.scopeDepth -= 1;
+    }
     pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
         if (self.prev) |p| {
             p.deinit(alloc);
@@ -193,10 +200,27 @@ const Parser = struct {
         var curr = try self.takeToken();
         switch (curr.kind) {
             .PRINT => try self.printStatement(),
+            .LEFT_BRACE => {
+                self.scope.incDepth();
+                try self.block();
+                self.scope.decDepth();
+            },
             else => {
                 self.peek = curr;
                 try self.expressionStatement();
             },
+        }
+    }
+
+    pub fn block(self: *@This()) ParseError!void {
+        self.peek = null;
+        while (true) {
+            var curr = try self.peekToken();
+            switch (curr.kind) {
+                .RIGHT_BRACE => return,
+                .EOF => return self.err(error.UnexpectedEOF),
+                else => try self.declaration(),
+            }
         }
     }
 
