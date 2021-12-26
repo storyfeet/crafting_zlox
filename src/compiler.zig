@@ -13,10 +13,6 @@ const assert = std.debug.assert;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
-pub fn compile(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !void {
-    _ = try Parser.init(s, alloc, ch);
-}
-
 const ParseError = error{
     InvalidCharacter,
     FloatParseError,
@@ -39,6 +35,7 @@ pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
     var ch = chunk.Chunk.init(a);
     defer ch.deinit(a);
     var p: Parser = try Parser.init(s, a, &ch);
+    defer p.deinit();
     try p.program();
     try ch.addOp(.EXIT);
     var theVm = vm.VM.init(&ch, a);
@@ -50,6 +47,7 @@ pub fn compileAndRunExpression(s: []const u8, a: *std.mem.Allocator) !value.Valu
     var ch = chunk.Chunk.init(a);
     defer ch.deinit(a);
     var p: Parser = try Parser.init(s, a, &ch);
+    defer p.deinit();
     try p.expression();
     try ch.addOp(.RETURN);
     var theVm = vm.VM.init(&ch, a);
@@ -65,12 +63,46 @@ const ParseErrorData = struct {
     }
 };
 
+const Local = struct {
+    name: []const u8,
+    depth: usize,
+};
+
+//BOOK - Compiler,
+const Scope = struct {
+    prev: ?*Scope,
+    locals: [256]Local,
+    localCount: u8,
+    scopeDepth: usize,
+    pub fn init(d: usize, alloc: *std.mem.Allocator) !*@This() {
+        var res: *Scope = try alloc.create(Scope);
+        res.prev = null;
+        res.localCount = 0;
+        res.scopeDepth = d;
+        return res;
+    }
+
+    pub fn parent(self: *@This(), alloc: *std.mem.Allocator) ?*@This() {
+        var p = self.prev;
+        alloc.destory(self);
+        return p;
+    }
+
+    pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
+        if (self.prev) |p| {
+            p.deinit(alloc);
+        }
+        alloc.destroy(self);
+    }
+};
+
 const Parser = struct {
     peek: ?Token,
     scanner: scanner.Tokenizer,
     chk: *chunk.Chunk,
     alloc: *std.mem.Allocator,
     errors: std.ArrayList(ParseErrorData),
+    scope: *Scope,
 
     pub fn err(self: *@This(), e: ParseError) ParseError {
         const edata = ParseErrorData{
@@ -90,7 +122,13 @@ const Parser = struct {
             .chk = ch,
             .alloc = alloc,
             .errors = std.ArrayList(ParseErrorData).init(alloc),
+            .scope = try Scope.init(0, alloc),
         };
+    }
+
+    pub fn deinit(self: @This()) void {
+        self.errors.deinit();
+        self.scope.deinit(self.alloc);
     }
 
     pub fn peekToken(this: *@This()) ParseError!Token {
@@ -351,14 +389,6 @@ fn getRule(tk: TokenType) ParseRule {
         .IDENT => .{ .prefix = Parser.variable },
         else => .{},
     };
-}
-
-test "can compile something" {
-    var alloc = std.testing.allocator;
-    const s = "print \"hello\"";
-    var ch = chunk.Chunk.init(alloc);
-    defer ch.deinit(alloc);
-    try compile(s, alloc, &ch);
 }
 
 test "rule table functions" {
