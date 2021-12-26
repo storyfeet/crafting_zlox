@@ -135,6 +135,14 @@ pub const VM = struct {
                         return error.GLOBAL_NON_EXISTENT_NOT_SET;
                     }
                 },
+                .SET_LOCAL => {
+                    const slot = self.readByte();
+                    self.stack.items[slot] = self.peekStack();
+                },
+                .GET_LOCAL => {
+                    const slot = self.readByte();
+                    try self.stack.append(self.stack.items[slot]);
+                },
             }
         }
     }
@@ -147,16 +155,18 @@ pub const VM = struct {
         return Value{ .OBJ = res };
     }
 
-    fn readInstruction(self: *VM) OpCode {
-        var op = @intToEnum(OpCode, self.chunk.ins.items[self.ip]);
+    fn readByte(self: *VM) u8 {
+        var res = self.chunk.ins.items[self.ip];
         self.ip += 1;
-        return op;
+        return res;
+    }
+
+    fn readInstruction(self: *VM) OpCode {
+        return @intToEnum(OpCode, self.readByte());
     }
 
     fn readConst(self: *VM) Value {
-        var pos = @intCast(usize, self.chunk.ins.items[self.ip]);
-        self.ip += 1;
-        return self.chunk.consts.items[pos];
+        return self.chunk.consts.items[self.readByte()];
     }
 
     fn readStack(self: *VM) Value {

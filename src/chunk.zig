@@ -57,6 +57,11 @@ pub const Chunk = struct {
         try ch.ins.append(pos);
     }
 
+    pub fn addWithByte(ch: *Chunk, op: OpCode, v: u8) !void {
+        try ch.ins.append(@enumToInt(op));
+        try ch.ins.append(v);
+    }
+
     pub fn addOp(ch: *Chunk, od: OpCode) !void {
         try ch.ins.append(@enumToInt(od));
     }

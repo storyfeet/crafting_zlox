@@ -102,8 +102,15 @@ const Scope = struct {
         self.count += 1;
     }
 
-    pub fn decDepth(self: *@This()) void {
-        self.depth -= 1;
+    pub fn decDepth(self: *@This()) u8 {
+        var res: u8 = 0;
+        while (self.count > 0) : (self.count -= 1) {
+            if (self.locals[self.count - 1].depth < self.depth) {
+                return res;
+            }
+            res += 1;
+        }
+        return res;
     }
     pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
         if (self.prev) |p| {
@@ -113,6 +120,7 @@ const Scope = struct {
     }
 
     pub fn levelLocalExists(self: *@This(), s: []const u8) bool {
+        if (self.count == 0) return false;
         var i = self.count - 1;
         while (i >= 0) : (i -= 1) {
             var loc = &self.locals[i];
@@ -120,6 +128,7 @@ const Scope = struct {
                 return false;
             }
             if (std.mem.eql(u8, loc.name, s)) {
+                std.debug.print("EQL {s} : {s}\n\n", .{ loc.name, s });
                 return true;
             }
         }
@@ -127,9 +136,10 @@ const Scope = struct {
     }
 
     pub fn findLocal(self: *@This(), s: []const u8) ?u8 {
+        if (self.count == 0) return null;
         var i = self.count - 1;
         while (i >= 0) : (i -= 1) {
-            if (std.mem.eql(u8, &self.locals[i], s)) {
+            if (std.mem.eql(u8, self.locals[i].name, s)) {
                 return i;
             }
         }
@@ -237,7 +247,8 @@ const Parser = struct {
             .LEFT_BRACE => {
                 self.scope.incDepth();
                 try self.block();
-                self.scope.decDepth();
+                var pops = self.scope.decDepth();
+                while (pops < 0) : (pops -= 1) self.chk.addOp(.POP);
             },
             else => {
                 self.peek = curr;
@@ -251,7 +262,10 @@ const Parser = struct {
         while (true) {
             var curr = try self.peekToken();
             switch (curr.kind) {
-                .RIGHT_BRACE => return,
+                .RIGHT_BRACE => {
+                    self.peek = null;
+                    return;
+                },
                 .EOF => return self.err(error.UnexpectedEOF),
                 else => try self.declaration(),
             }
@@ -282,10 +296,10 @@ const Parser = struct {
         const tname = self.scanner.tokenStr(tok);
         var tval = try Value.fromStr(tname, self.alloc);
         if (self.scope.depth > 0) {
-            self.scope.addLocal(tname) catch |e| return self.err(e);
             if (self.scope.levelLocalExists(tname)) {
                 return self.err(error.LocalAlreadyExists);
             }
+            self.scope.addLocal(tname) catch |e| return self.err(e);
         }
         try self.chk.addConst(.DEFINE_GLOBAL, tval);
     }
@@ -407,11 +421,11 @@ const Parser = struct {
             self.peek = null;
             try self.expression();
             if (self.scope.findLocal(name)) |loc| {
-                try self.chk.addConst(.SET_LOCAL, loc);
+                try self.chk.addWithByte(.SET_LOCAL, loc);
             } else try self.chk.addConst(.SET_GLOBAL, val);
         } else {
             if (self.scope.findLocal(name)) |loc| {
-                try self.chk.addConst(.GET_LOCAL, loc);
+                try self.chk.addWithByte(.GET_LOCAL, loc);
             } else try self.chk.addConst(.GET_GLOBAL, val);
         }
     }

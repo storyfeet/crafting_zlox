@@ -1,0 +1,8 @@
+var a = 5;
+a = a+2;
+print a;
+{
+    var b = 3;
+    print b;
+}
+print a;
