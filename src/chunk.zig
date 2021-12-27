@@ -1,6 +1,7 @@
 const std = @import("std");
 const AC = std.mem.Alloc;
 const value = @import("value.zig");
+const ByteIter = @import("util/byte_iter.zig").ByteIter;
 const Value = value.Value;
 
 pub const OpCode = enum(u8) {
