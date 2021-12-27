@@ -7,6 +7,6 @@ print a;
     b = b + 3;
     print b;
     //Uncomment below to try to set const a
-    a = a +2 ;
+    //a = a +2 ;
 }
 print a;

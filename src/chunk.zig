@@ -43,37 +43,21 @@ pub const Chunk = struct {
     }
 
     pub fn print(ch: *Chunk, w: anytype) void {
-        const Mode = enum {
-            Ins,
-            Const,
-            Slot,
-        };
-        var mode = Mode.Ins;
-        for (ch.ins.items) |ins| {
-            switch (mode) {
-                .Ins => {
-                    var oc = @intToEnum(OpCode, ins);
-                    switch (oc) {
-                        .SET_LOCAL, .GET_LOCAL => {
-                            w.print("{} :", .{oc});
-                            mode = .Slot;
-                        },
-                        .SET_GLOBAL, .GET_GLOBAL, .CONSTANT, .DEFINE_GLOBAL => {
-                            w.print("{} :", .{oc});
-                            mode = .Const;
-                        },
-                        else => w.print("{}\n", .{oc}),
-                    }
+        var it = ByteIter.init(ch.ins.items);
+        while (it.tryReadN(u8)) |ins| {
+            var oc = @intToEnum(OpCode, ins);
+            switch (oc) {
+                .SET_LOCAL, .GET_LOCAL => {
+                    var slot = it.readN(u8);
+                    w.print("{} : {}\n", .{ oc, slot });
                 },
-                .Const => {
-                    try ch.consts.items[ins].printTo(w);
+                .SET_GLOBAL, .GET_GLOBAL, .CONSTANT, .DEFINE_GLOBAL => {
+                    w.print("{} :", .{oc});
+                    const cpos = it.readN(u8);
+                    try ch.consts.items[cpos].printTo(w);
                     w.print("\n", .{});
-                    mode = .Ins;
                 },
-                .Slot => {
-                    w.print("{}\n", .{ins});
-                    mode = .Ins;
-                },
+                else => w.print("{}\n", .{oc}),
             }
         }
     }

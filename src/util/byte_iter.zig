@@ -1,7 +1,7 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
-const ByteIter = struct {
+pub const ByteIter = struct {
     list: []u8,
     n: usize,
 
