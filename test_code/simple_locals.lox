@@ -1,10 +1,12 @@
 var a = 5;
 print a;
 {
-    var a = a + 2;
+    const a = a + 2;
     var b = 7;
     print a;
-    b = b +3;
+    b = b + 3;
     print b;
+    //Uncomment below to try to set const a
+    a = a +2 ;
 }
 print a;

@@ -31,6 +31,7 @@ const ParseError = error{
     TooManyLocalVariables,
     TooManyCompileErrors,
     LocalAlreadyExists,
+    CannotSetConst,
 } || scanner.ScanError;
 
 pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
@@ -69,8 +70,13 @@ const ParseErrorData = struct {
 const Local = struct {
     name: []const u8,
     depth: ?usize,
+    isConst: bool,
 };
 
+const FoundLocal = struct {
+    slot: u8,
+    isC: bool,
+};
 //BOOK - Compiler,
 const Scope = struct {
     prev: ?*Scope,
@@ -95,11 +101,12 @@ const Scope = struct {
         self.depth += 1;
     }
 
-    pub fn addLocal(self: *@This(), name: []const u8) ParseError!void {
+    pub fn addLocal(self: *@This(), name: []const u8, isConst: bool) ParseError!void {
         if (self.count == 255) return error.TooManyLocalVariables;
         var loc = &self.locals[self.count];
         loc.name = name;
         loc.depth = null;
+        loc.isConst = isConst;
         self.count += 1;
     }
 
@@ -144,12 +151,12 @@ const Scope = struct {
         }
     }
 
-    pub fn findLocal(self: *@This(), s: []const u8) ?u8 {
+    pub fn findLocal(self: *@This(), s: []const u8) ?FoundLocal {
         if (self.count == 0) return null;
         var i = self.count - 1;
         while (true) : (i -= 1) {
             if (std.mem.eql(u8, self.locals[i].name, s)) {
-                return i;
+                return FoundLocal{ .slot = i, .isC = self.locals[i].isConst };
             }
             if (i == 0) return null;
         }
@@ -241,7 +248,8 @@ const Parser = struct {
     pub fn declaration(self: *@This()) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
-            .VAR => try self.varDeclaration(),
+            .VAR => try self.varDeclaration(false),
+            .CONST => try self.varDeclaration(true),
             else => {
                 self.peek = curr;
                 try self.statement();
@@ -281,7 +289,7 @@ const Parser = struct {
         }
     }
 
-    pub fn varDeclaration(self: *@This()) ParseError!void {
+    pub fn varDeclaration(self: *@This(), isConst: bool) ParseError!void {
         self.peek = null;
         const nameTok = try self.takeToken();
         if (nameTok.kind != .IDENT) {
@@ -292,23 +300,23 @@ const Parser = struct {
             .EQUAL => try self.expression(),
             .SEMICOLON => {
                 try self.chk.addOp(.NIL);
-                try self.defineVariable(nameTok);
+                try self.defineVariable(nameTok, isConst);
                 return;
             },
             else => return self.err(ParseError.ExpectedEquals),
         }
         try self.consume(.SEMICOLON, error.ExpectedSemicolon);
-        try self.defineVariable(nameTok);
+        try self.defineVariable(nameTok, isConst);
     }
 
-    pub fn defineVariable(self: *@This(), tok: Token) ParseError!void {
+    pub fn defineVariable(self: *@This(), tok: Token, isConst: bool) ParseError!void {
         const tname = self.scanner.tokenStr(tok);
         var tval = try Value.fromStr(tname, self.alloc);
         if (self.scope.depth > 0) {
             if (self.scope.levelLocalExists(tname)) {
                 return self.err(error.LocalAlreadyExists);
             }
-            self.scope.addLocal(tname) catch |e| return self.err(e);
+            self.scope.addLocal(tname, isConst) catch |e| return self.err(e);
             self.scope.initDepth();
             return;
         }
@@ -431,12 +439,13 @@ const Parser = struct {
         if (eqTok.kind == .EQUAL and canAssign) {
             self.peek = null;
             try self.expression();
-            if (self.scope.findLocal(name)) |loc| {
-                try self.chk.addWithByte(.SET_LOCAL, loc);
+            if (self.scope.findLocal(name)) |tp| {
+                if (tp.isC) return self.err(error.CannotSetConst);
+                try self.chk.addWithByte(.SET_LOCAL, tp.slot);
             } else try self.chk.addConst(.SET_GLOBAL, val);
         } else {
-            if (self.scope.findLocal(name)) |loc| {
-                try self.chk.addWithByte(.GET_LOCAL, loc);
+            if (self.scope.findLocal(name)) |tp| {
+                try self.chk.addWithByte(.GET_LOCAL, tp.slot);
             } else try self.chk.addConst(.GET_GLOBAL, val);
         }
     }

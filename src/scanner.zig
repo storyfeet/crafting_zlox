@@ -20,7 +20,7 @@ BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
 // Literals.
 IDENT, STRING, NUMBER,
 // Keywords.
-AND, CLASS, ELSE, FALSE, FOR, FUN, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE, ERROR, EOF };
+AND, CLASS, ELSE, FALSE, FOR, FUN, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR, CONST, WHILE, ERROR, EOF };
 
 pub const Token = struct {
     kind: TokenType,
@@ -183,25 +183,26 @@ pub const Tokenizer = struct {
 };
 
 fn identTokenType(s: []const u8) TokenType {
-    if (std.mem.eql(u8, "and", s)) return TokenType.AND;
-    if (std.mem.eql(u8, "class", s)) return TokenType.CLASS;
-    if (std.mem.eql(u8, "else", s)) return TokenType.ELSE;
-    if (std.mem.eql(u8, "false", s)) return TokenType.FALSE;
-    if (std.mem.eql(u8, "for", s)) return TokenType.FOR;
-    if (std.mem.eql(u8, "fun", s)) return TokenType.FUN;
-    if (std.mem.eql(u8, "if", s)) return TokenType.IF;
-    if (std.mem.eql(u8, "nil", s)) return TokenType.NIL;
-    if (std.mem.eql(u8, "or", s)) return TokenType.OR;
-    if (std.mem.eql(u8, "return", s)) return TokenType.RETURN;
-    if (std.mem.eql(u8, "super", s)) return TokenType.SUPER;
-    if (std.mem.eql(u8, "this", s)) return TokenType.THIS;
-    if (std.mem.eql(u8, "true", s)) return TokenType.TRUE;
-    if (std.mem.eql(u8, "var", s)) return TokenType.VAR;
-    if (std.mem.eql(u8, "while", s)) return TokenType.WHILE;
-    if (std.mem.eql(u8, "print", s)) return TokenType.PRINT;
-    if (std.mem.eql(u8, "error", s)) return TokenType.ERROR;
-    if (std.mem.eql(u8, "eof", s)) return TokenType.EOF;
-    return TokenType.IDENT;
+    if (std.mem.eql(u8, "and", s)) return .AND;
+    if (std.mem.eql(u8, "class", s)) return .CLASS;
+    if (std.mem.eql(u8, "else", s)) return .ELSE;
+    if (std.mem.eql(u8, "false", s)) return .FALSE;
+    if (std.mem.eql(u8, "for", s)) return .FOR;
+    if (std.mem.eql(u8, "fun", s)) return .FUN;
+    if (std.mem.eql(u8, "if", s)) return .IF;
+    if (std.mem.eql(u8, "nil", s)) return .NIL;
+    if (std.mem.eql(u8, "or", s)) return .OR;
+    if (std.mem.eql(u8, "return", s)) return .RETURN;
+    if (std.mem.eql(u8, "super", s)) return .SUPER;
+    if (std.mem.eql(u8, "this", s)) return .THIS;
+    if (std.mem.eql(u8, "true", s)) return .TRUE;
+    if (std.mem.eql(u8, "var", s)) return .VAR;
+    if (std.mem.eql(u8, "const", s)) return .CONST;
+    if (std.mem.eql(u8, "while", s)) return .WHILE;
+    if (std.mem.eql(u8, "print", s)) return .PRINT;
+    if (std.mem.eql(u8, "error", s)) return .ERROR;
+    if (std.mem.eql(u8, "eof", s)) return .EOF;
+    return .IDENT;
 }
 
 fn isDigit(c: u21) bool {
