@@ -40,6 +40,7 @@ pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
     defer p.deinit();
     try p.program();
     try ch.addOp(.EXIT);
+    ch.print(std.debug);
     var theVm = vm.VM.init(&ch, a);
     defer theVm.deinit();
     _ = try theVm.run();
@@ -122,7 +123,7 @@ const Scope = struct {
     pub fn levelLocalExists(self: *@This(), s: []const u8) bool {
         if (self.count == 0) return false;
         var i = self.count - 1;
-        while (i >= 0) : (i -= 1) {
+        while (true) : (i -= 1) {
             var loc = &self.locals[i];
             if (loc.depth != -1 and loc.depth < self.depth) {
                 return false;
@@ -131,19 +132,19 @@ const Scope = struct {
                 std.debug.print("EQL {s} : {s}\n\n", .{ loc.name, s });
                 return true;
             }
+            if (i == 0) return false;
         }
-        return false;
     }
 
     pub fn findLocal(self: *@This(), s: []const u8) ?u8 {
         if (self.count == 0) return null;
         var i = self.count - 1;
-        while (i >= 0) : (i -= 1) {
+        while (true) : (i -= 1) {
             if (std.mem.eql(u8, self.locals[i].name, s)) {
                 return i;
             }
+            if (i == 0) return null;
         }
-        return null;
     }
 };
 
@@ -300,6 +301,7 @@ const Parser = struct {
                 return self.err(error.LocalAlreadyExists);
             }
             self.scope.addLocal(tname) catch |e| return self.err(e);
+            return;
         }
         try self.chk.addConst(.DEFINE_GLOBAL, tval);
     }

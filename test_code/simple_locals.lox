@@ -3,6 +3,8 @@ a = a+2;
 print a;
 {
     var b = 3;
+    var c = 4;
+    b = 4;
     print b;
 }
 print a;

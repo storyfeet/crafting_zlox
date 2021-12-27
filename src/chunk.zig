@@ -41,6 +41,42 @@ pub const Chunk = struct {
         };
     }
 
+    pub fn print(ch: *Chunk, w: anytype) void {
+        const Mode = enum {
+            Ins,
+            Const,
+            Slot,
+        };
+        var mode = Mode.Ins;
+        for (ch.ins.items) |ins| {
+            switch (mode) {
+                .Ins => {
+                    var oc = @intToEnum(OpCode, ins);
+                    switch (oc) {
+                        .SET_LOCAL, .GET_LOCAL => {
+                            w.print("{} :", .{oc});
+                            mode = .Slot;
+                        },
+                        .SET_GLOBAL, .GET_GLOBAL, .CONSTANT, .DEFINE_GLOBAL => {
+                            w.print("{} :", .{oc});
+                            mode = .Const;
+                        },
+                        else => w.print("{}\n", .{oc}),
+                    }
+                },
+                .Const => {
+                    try ch.consts.items[ins].printTo(w);
+                    w.print("\n", .{});
+                    mode = .Ins;
+                },
+                .Slot => {
+                    w.print("{}\n", .{ins});
+                    mode = .Ins;
+                },
+            }
+        }
+    }
+
     pub fn addConst(ch: *Chunk, op: OpCode, v: Value) !void {
         var found: ?usize = null;
         for (ch.consts.items) |cv, i| {

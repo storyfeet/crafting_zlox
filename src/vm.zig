@@ -141,6 +141,8 @@ pub const VM = struct {
                 },
                 .GET_LOCAL => {
                     const slot = self.readByte();
+                    std.debug.print("slot BYTE read = {}\n", .{slot});
+                    std.debug.print("stack len {}\n", .{self.stack.items.len});
                     try self.stack.append(self.stack.items[slot]);
                 },
             }
