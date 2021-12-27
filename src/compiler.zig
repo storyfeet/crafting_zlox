@@ -68,7 +68,7 @@ const ParseErrorData = struct {
 
 const Local = struct {
     name: []const u8,
-    depth: usize,
+    depth: ?usize,
 };
 
 //BOOK - Compiler,
@@ -77,11 +77,11 @@ const Scope = struct {
     locals: [256]Local,
     count: u8,
     depth: usize,
-    pub fn init(d: usize, alloc: *std.mem.Allocator) !*@This() {
+    pub fn init(alloc: *std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
         res.prev = null;
         res.count = 0;
-        res.depth = d;
+        res.depth = 0;
         return res;
     }
 
@@ -99,19 +99,25 @@ const Scope = struct {
         if (self.count == 255) return error.TooManyLocalVariables;
         var loc = &self.locals[self.count];
         loc.name = name;
-        loc.depth = self.depth;
+        loc.depth = null;
         self.count += 1;
     }
 
     pub fn decDepth(self: *@This()) u8 {
         var res: u8 = 0;
         while (self.count > 0) : (self.count -= 1) {
-            if (self.locals[self.count - 1].depth < self.depth) {
-                return res;
+            var dp = self.locals[self.count - 1].depth;
+            if (dp) |d| {
+                if (d < self.depth) {
+                    return res;
+                }
             }
             res += 1;
         }
         return res;
+    }
+    pub fn initDepth(self: *@This()) void {
+        self.locals[self.count - 1].depth = self.depth;
     }
     pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
         if (self.prev) |p| {
@@ -125,8 +131,10 @@ const Scope = struct {
         var i = self.count - 1;
         while (true) : (i -= 1) {
             var loc = &self.locals[i];
-            if (loc.depth != -1 and loc.depth < self.depth) {
-                return false;
+            if (loc.depth) |dp| {
+                if (dp < self.depth) {
+                    return false;
+                }
             }
             if (std.mem.eql(u8, loc.name, s)) {
                 std.debug.print("EQL {s} : {s}\n\n", .{ loc.name, s });
@@ -174,7 +182,7 @@ const Parser = struct {
             .chk = ch,
             .alloc = alloc,
             .errors = std.ArrayList(ParseErrorData).init(alloc),
-            .scope = try Scope.init(0, alloc),
+            .scope = try Scope.init(alloc),
         };
     }
 
@@ -301,6 +309,7 @@ const Parser = struct {
                 return self.err(error.LocalAlreadyExists);
             }
             self.scope.addLocal(tname) catch |e| return self.err(e);
+            self.scope.initDepth();
             return;
         }
         try self.chk.addConst(.DEFINE_GLOBAL, tval);

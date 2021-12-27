@@ -1,10 +1,10 @@
 var a = 5;
-a = a+2;
 print a;
 {
-    var b = 3;
-    var c = 4;
-    b = 4;
+    var a = a + 2;
+    var b = 7;
+    print a;
+    b = b +3;
     print b;
 }
 print a;
