@@ -46,7 +46,7 @@ pub const ChunkIter = struct {
         return @intToEnum(OpCode, b);
     }
     pub fn readConst(self: *@This()) Value {
-        var b = self.ins.readN(u8);
+        var b = self.ins.readN(u16);
         return self.chunk.consts.items[b];
     }
 
@@ -95,24 +95,25 @@ pub const Chunk = struct {
                 break;
             }
         }
-        var pos: u8 = @intCast(u8, found orelse ch.consts.items.len);
+        var pos: u16 = @intCast(u16, found orelse ch.consts.items.len);
         if (found == null) {
             try ch.consts.append(v);
         }
         try ch.ins.append(@enumToInt(op));
-        try ch.ins.append(pos);
+        try ch.addNumBytes(u16, pos);
     }
 
-    pub fn addWithByte(ch: *Chunk, op: OpCode, v: u8) !void {
-        try ch.ins.append(@enumToInt(op));
-        try ch.ins.append(v);
+    pub fn addNumBytes(ch: *Chunk, comptime T: type, n: T) !void {
+        var swp = @byteSwap(T, n);
+        var bts = std.mem.toBytes(swp);
+        for (bts) |b| {
+            try ch.ins.append(b);
+        }
     }
 
     pub fn addWithSlot(ch: *Chunk, op: OpCode, v: u16) !void {
         try ch.ins.append(@enumToInt(op));
-        var b = std.mem.toBytes(v);
-        try ch.ins.append(b[1]);
-        try ch.ins.append(b[0]);
+        try ch.addNumBytes(u16, v);
     }
 
     pub fn addOp(ch: *Chunk, od: OpCode) !void {
