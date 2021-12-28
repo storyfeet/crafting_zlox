@@ -28,14 +28,14 @@ pub const VMError = error{
 
 pub const VM = struct {
     ip: usize,
-    chunk: *chunk.Chunk,
+    chunki: chunk.ChunkIter,
     stack: std.ArrayList(Value),
     freelist: DropList(*Obj),
     alloc: *std.mem.Allocator,
     globals: VarMap,
     pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
         return VM{
-            .chunk = ch,
+            .chunki = chunk.ChunkIter.init(ch),
             .ip = 0,
             .stack = std.ArrayList(Value).init(alloc),
             .alloc = alloc,
@@ -47,8 +47,8 @@ pub const VM = struct {
     pub fn run(
         self: *VM,
     ) VMError!Value {
-        while (true) {
-            switch (self.readInstruction()) {
+        while (self.chunki.readOp()) |op| {
+            switch (op) {
                 .EXIT => {
                     return Value{ .NUMBER = 0 };
                 },
@@ -59,7 +59,7 @@ pub const VM = struct {
                 },
 
                 .CONSTANT => {
-                    var cval = self.readConst();
+                    var cval = self.chunki.readConst();
                     if (conf.DEBUG_TRACE_EXECUTION) {
                         std.debug.print("CONSTANT = {}\n", .{cval});
                     }
@@ -115,19 +115,19 @@ pub const VM = struct {
                     _ = self.readStack();
                 },
                 .DEFINE_GLOBAL => {
-                    const cval = self.readConst();
+                    const cval = self.chunki.readConst();
                     const s = cval.asStr() orelse return error.NON_STRING_GLOBAL;
                     const top = self.readStack();
                     try self.globals.put(s, top);
                 },
                 .GET_GLOBAL => {
-                    const cval = self.readConst();
+                    const cval = self.chunki.readConst();
                     const s = cval.asStr() orelse return error.NON_STRING_GLOBAL;
                     const gval = self.globals.get(s) orelse return error.GLOBAL_NON_EXISTENT;
                     try self.stack.append(gval);
                 },
                 .SET_GLOBAL => {
-                    const cval = self.readConst();
+                    const cval = self.chunki.readConst();
                     const k = cval.asStr() orelse return error.NON_STRING_GLOBAL;
                     const v = self.peekStack();
                     var prev = try self.globals.fetchPut(k, v);
@@ -136,17 +136,18 @@ pub const VM = struct {
                     }
                 },
                 .SET_LOCAL => {
-                    const slot = self.readByte();
+                    const slot = self.chunki.readSlot();
                     self.stack.items[slot] = self.peekStack();
                 },
                 .GET_LOCAL => {
-                    const slot = self.readByte();
+                    const slot = self.chunki.readSlot();
                     std.debug.print("slot BYTE read = {}\n", .{slot});
                     std.debug.print("stack len {}\n", .{self.stack.items.len});
                     try self.stack.append(self.stack.items[slot]);
                 },
             }
         }
+        return Value{ .NUMBER = 0 };
     }
 
     fn newObjectValue(self: *VM, data: ObjData) !Value {
@@ -155,20 +156,6 @@ pub const VM = struct {
         res.data = data;
         try self.freelist.push(res);
         return Value{ .OBJ = res };
-    }
-
-    fn readByte(self: *VM) u8 {
-        var res = self.chunk.ins.items[self.ip];
-        self.ip += 1;
-        return res;
-    }
-
-    fn readInstruction(self: *VM) OpCode {
-        return @intToEnum(OpCode, self.readByte());
-    }
-
-    fn readConst(self: *VM) Value {
-        return self.chunk.consts.items[self.readByte()];
     }
 
     fn readStack(self: *VM) Value {

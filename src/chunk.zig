@@ -4,6 +4,8 @@ const value = @import("value.zig");
 const ByteIter = @import("util/byte_iter.zig").ByteIter;
 const Value = value.Value;
 
+pub const uSlot = u16;
+
 pub const OpCode = enum(u8) {
     RETURN,
     EXIT,
@@ -27,6 +29,30 @@ pub const OpCode = enum(u8) {
     SET_GLOBAL,
     GET_LOCAL,
     SET_LOCAL,
+};
+
+pub const ChunkIter = struct {
+    chunk: *Chunk,
+    ins: ByteIter,
+    pub fn init(ch: *Chunk) @This() {
+        return ChunkIter{
+            .chunk = ch,
+            .ins = ByteIter.init(ch.ins.items),
+        };
+    }
+
+    pub fn readOp(self: *@This()) ?OpCode {
+        var b = self.ins.tryReadN(u8) orelse return null;
+        return @intToEnum(OpCode, b);
+    }
+    pub fn readConst(self: *@This()) Value {
+        var b = self.ins.readN(u8);
+        return self.chunk.consts.items[b];
+    }
+
+    pub fn readSlot(self: *@This()) u8 {
+        return self.ins.readN(u8);
+    }
 };
 
 pub const Chunk = struct {
@@ -83,6 +109,13 @@ pub const Chunk = struct {
         try ch.ins.append(v);
     }
 
+    pub fn addWithSlot(ch: *Chunk, op: OpCode, v: u16) !void {
+        try ch.ins.append(@enumToInt(op));
+        var b = std.mem.toBytes(v);
+        try ch.ins.append(b[1]);
+        try ch.ins.append(b[0]);
+    }
+
     pub fn addOp(ch: *Chunk, od: OpCode) !void {
         try ch.ins.append(@enumToInt(od));
     }
@@ -120,4 +153,10 @@ fn dissasemble_instruction(codes: []const u8, offset: usize) usize {
             return offset + 2;
         },
     }
+}
+
+test "byte conversion" {
+    var n: u16 = 260;
+    var bytes = std.mem.toBytes(n);
+    try std.testing.expectEqual(bytes, [2]u8{ 4, 1 });
 }

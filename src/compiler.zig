@@ -9,6 +9,7 @@ const vm = @import("vm.zig");
 const Obj = value.Obj;
 const Value = value.Value;
 const assert = std.debug.assert;
+const uSlot = chunk.uSlot;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -69,24 +70,23 @@ const ParseErrorData = struct {
 
 const Local = struct {
     name: []const u8,
-    depth: ?usize,
+    depth: ?usize = null,
     isConst: bool,
 };
 
 const FoundLocal = struct {
-    slot: u8,
+    slot: uSlot,
     isC: bool,
 };
 //BOOK - Compiler,
 const Scope = struct {
     prev: ?*Scope,
-    locals: [256]Local,
-    count: u8,
+    locals: std.ArrayListUnmanaged(Local),
     depth: usize,
     pub fn init(alloc: *std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
+        res.locals = std.ArrayListUnmanaged(Local).init();
         res.prev = null;
-        res.count = 0;
         res.depth = 0;
         return res;
     }
@@ -101,19 +101,20 @@ const Scope = struct {
         self.depth += 1;
     }
 
-    pub fn addLocal(self: *@This(), name: []const u8, isConst: bool) ParseError!void {
-        if (self.count == 255) return error.TooManyLocalVariables;
-        var loc = &self.locals[self.count];
-        loc.name = name;
-        loc.depth = null;
-        loc.isConst = isConst;
-        self.count += 1;
+    pub fn addLocal(self: *@This(), alloc: *std.mem.Allocator, name: []const u8, isConst: bool) ParseError!void {
+        if (self.count == 256 * 256 - 1) return error.TooManyLocalVariables;
+        var loc = Local{
+            .name = name,
+            .depth = null,
+            .isConst = isConst,
+        };
+        try self.locals.append(alloc, loc);
     }
 
     pub fn decDepth(self: *@This()) u8 {
         var res: u8 = 0;
-        while (self.count > 0) : (self.count -= 1) {
-            var dp = self.locals[self.count - 1].depth;
+        while (self.locals.items.len > 0) : (self.locals.items.len -= 1) {
+            var dp = self.locals.items[self.locals.items.len - 1].depth;
             if (dp) |d| {
                 if (d < self.depth) {
                     return res;
@@ -123,6 +124,7 @@ const Scope = struct {
         }
         return res;
     }
+
     pub fn initDepth(self: *@This()) void {
         self.locals[self.count - 1].depth = self.depth;
     }
