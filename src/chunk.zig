@@ -50,8 +50,8 @@ pub const ChunkIter = struct {
         return self.chunk.consts.items[b];
     }
 
-    pub fn readSlot(self: *@This()) u8 {
-        return self.ins.readN(u8);
+    pub fn readSlot(self: *@This()) uSlot {
+        return self.ins.readN(uSlot);
     }
 };
 
@@ -69,21 +69,20 @@ pub const Chunk = struct {
     }
 
     pub fn print(ch: *Chunk, w: anytype) void {
-        var it = ByteIter.init(ch.ins.items);
-        while (it.tryReadN(u8)) |ins| {
-            var oc = @intToEnum(OpCode, ins);
-            switch (oc) {
+        var it = ChunkIter.init(ch);
+        while (it.readOp()) |op| {
+            switch (op) {
                 .SET_LOCAL, .GET_LOCAL => {
-                    var slot = it.readN(u8);
-                    w.print("{} : {}\n", .{ oc, slot });
+                    var slot = it.readSlot();
+                    w.print("{} : {}\n", .{ op, slot });
                 },
                 .SET_GLOBAL, .GET_GLOBAL, .CONSTANT, .DEFINE_GLOBAL => {
-                    w.print("{} :", .{oc});
-                    const cpos = it.readN(u8);
-                    try ch.consts.items[cpos].printTo(w);
+                    w.print("{} :", .{op});
+                    const c = it.readConst();
+                    try c.printTo(w);
                     w.print("\n", .{});
                 },
-                else => w.print("{}\n", .{oc}),
+                else => w.print("{}\n", .{op}),
             }
         }
     }

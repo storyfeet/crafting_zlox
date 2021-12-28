@@ -78,14 +78,16 @@ const FoundLocal = struct {
     slot: uSlot,
     isC: bool,
 };
-//BOOK - Compiler,
+//BOOK - Compiler, Allocator must alway be the same;
 const Scope = struct {
+    const LList = std.ArrayListUnmanaged(Local);
     prev: ?*Scope,
-    locals: std.ArrayListUnmanaged(Local),
+    locals: LList,
     depth: usize,
+
     pub fn init(alloc: *std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
-        res.locals = std.ArrayListUnmanaged(Local).init();
+        res.locals = LList{};
         res.prev = null;
         res.depth = 0;
         return res;
@@ -102,7 +104,6 @@ const Scope = struct {
     }
 
     pub fn addLocal(self: *@This(), alloc: *std.mem.Allocator, name: []const u8, isConst: bool) ParseError!void {
-        if (self.count == 256 * 256 - 1) return error.TooManyLocalVariables;
         var loc = Local{
             .name = name,
             .depth = null,
@@ -126,20 +127,22 @@ const Scope = struct {
     }
 
     pub fn initDepth(self: *@This()) void {
-        self.locals[self.count - 1].depth = self.depth;
+        self.locals.items[self.locals.items.len - 1].depth = self.depth;
     }
+
     pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
         if (self.prev) |p| {
             p.deinit(alloc);
         }
+        self.locals.deinit(alloc);
         alloc.destroy(self);
     }
 
     pub fn levelLocalExists(self: *@This(), s: []const u8) bool {
-        if (self.count == 0) return false;
-        var i = self.count - 1;
+        if (self.locals.items.len == 0) return false;
+        var i = self.locals.items.len - 1;
         while (true) : (i -= 1) {
-            var loc = &self.locals[i];
+            var loc = &self.locals.items[i];
             if (loc.depth) |dp| {
                 if (dp < self.depth) {
                     return false;
@@ -154,11 +157,11 @@ const Scope = struct {
     }
 
     pub fn findLocal(self: *@This(), s: []const u8) ?FoundLocal {
-        if (self.count == 0) return null;
-        var i = self.count - 1;
+        if (self.locals.items.len == 0) return null;
+        var i = self.locals.items.len - 1;
         while (true) : (i -= 1) {
-            if (std.mem.eql(u8, self.locals[i].name, s)) {
-                return FoundLocal{ .slot = i, .isC = self.locals[i].isConst };
+            if (std.mem.eql(u8, self.locals.items[i].name, s)) {
+                return FoundLocal{ .slot = @intCast(uSlot, i), .isC = self.locals.items[i].isConst };
             }
             if (i == 0) return null;
         }
@@ -318,7 +321,7 @@ const Parser = struct {
             if (self.scope.levelLocalExists(tname)) {
                 return self.err(error.LocalAlreadyExists);
             }
-            self.scope.addLocal(tname, isConst) catch |e| return self.err(e);
+            self.scope.addLocal(self.alloc, tname, isConst) catch |e| return self.err(e);
             self.scope.initDepth();
             return;
         }
@@ -443,11 +446,11 @@ const Parser = struct {
             try self.expression();
             if (self.scope.findLocal(name)) |tp| {
                 if (tp.isC) return self.err(error.CannotSetConst);
-                try self.chk.addWithByte(.SET_LOCAL, tp.slot);
+                try self.chk.addWithSlot(.SET_LOCAL, tp.slot);
             } else try self.chk.addConst(.SET_GLOBAL, val);
         } else {
             if (self.scope.findLocal(name)) |tp| {
-                try self.chk.addWithByte(.GET_LOCAL, tp.slot);
+                try self.chk.addWithSlot(.GET_LOCAL, tp.slot);
             } else try self.chk.addConst(.GET_GLOBAL, val);
         }
     }
