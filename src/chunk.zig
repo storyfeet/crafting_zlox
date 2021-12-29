@@ -145,7 +145,7 @@ pub const Chunk = struct {
             return error.JumpTooBig;
         }
         //@byteSwap(T, n) marked in case byte order changes
-        var bts = std.mem.toBytes(jump);
+        var bts = std.mem.toBytes(@intCast(u16, jump));
         ch.items[from] = bts[1];
         ch.items[from + 1] = bts[0];
     }
