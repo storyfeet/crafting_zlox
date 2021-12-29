@@ -45,6 +45,7 @@ pub const ChunkIter = struct {
         var b = self.ins.tryReadN(u8) orelse return null;
         return @intToEnum(OpCode, b);
     }
+
     pub fn readConst(self: *@This()) Value {
         var b = self.ins.readN(u16);
         return self.chunk.consts.items[b];
@@ -127,6 +128,26 @@ pub const Chunk = struct {
         ch.consts.deinit();
         ch.ins.deinit();
         ch.lines.deinit();
+    }
+
+    pub fn addJump(ch: *Chunk, op: OpCode) !usize {
+        try ch.ins.append(op);
+        var res = ch.ins.items.len;
+        try ch.ins.append(0xff);
+        try ch.ins.append(0xff);
+        return res;
+    }
+
+    pub fn patchJump(ch: *Chunk, from: usize) !void {
+        // -2 accounts for the size of the jump op
+        var jump = (ch.ins.items.len - from) - 2;
+        if (jump >= 256 * 256) {
+            return error.JumpTooBig;
+        }
+        //@byteSwap(T, n) marked in case byte order changes
+        var bts = std.mem.toBytes(jump);
+        ch.items[from] = bts[1];
+        ch.items[from + 1] = bts[0];
     }
 };
 
