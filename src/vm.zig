@@ -22,6 +22,7 @@ pub const VMError = error{
     NON_STRING_GLOBAL,
     GLOBAL_NON_EXISTENT,
     GLOBAL_NON_EXISTENT_NOT_SET,
+    JumpOutOfBound,
     OutOfMemory,
     NegatingObject,
 } || value.ValueError;
@@ -142,6 +143,16 @@ pub const VM = struct {
                 .GET_LOCAL => {
                     const slot = self.chunki.readSlot();
                     try self.stack.append(self.stack.items[slot]);
+                },
+                .JUMP => {
+                    var target = self.chunki.readJump();
+                    try self.chunki.jump(target);
+                },
+                .JUMP_IF_FALSE => {
+                    var target = self.chunki.readJump();
+                    if (!self.peekStack().as_bool()) {
+                        try self.chunki.jump(target);
+                    }
                 },
             }
         }

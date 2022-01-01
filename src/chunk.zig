@@ -29,6 +29,8 @@ pub const OpCode = enum(u8) {
     SET_GLOBAL,
     GET_LOCAL,
     SET_LOCAL,
+    JUMP,
+    JUMP_IF_FALSE,
 };
 
 pub const ChunkIter = struct {
@@ -41,6 +43,12 @@ pub const ChunkIter = struct {
         };
     }
 
+    pub fn jump(self: *@This(), n: u16) !void {
+        self.ins.n += @intCast(usize, n);
+        if (self.ins.n >= self.chunk.ins.items.len) {
+            return error.JumpOutOfBound;
+        }
+    }
     pub fn readOp(self: *@This()) ?OpCode {
         var b = self.ins.tryReadN(u8) orelse return null;
         return @intToEnum(OpCode, b);
@@ -52,6 +60,10 @@ pub const ChunkIter = struct {
     }
 
     pub fn readSlot(self: *@This()) uSlot {
+        return self.ins.readN(uSlot);
+    }
+    ///Jump distinct from slot incase one's representation changes
+    pub fn readJump(self: *@This()) u16 {
         return self.ins.readN(uSlot);
     }
 };
@@ -82,6 +94,10 @@ pub const Chunk = struct {
                     const c = it.readConst();
                     try c.printTo(w);
                     w.print("\n", .{});
+                },
+                .JUMP, .JUMP_IF_FALSE => {
+                    var target = it.readJump();
+                    w.print("{} : {}\n", .{ op, target });
                 },
                 else => w.print("{}\n", .{op}),
             }
@@ -131,7 +147,7 @@ pub const Chunk = struct {
     }
 
     pub fn addJump(ch: *Chunk, op: OpCode) !usize {
-        try ch.ins.append(op);
+        try ch.ins.append(@enumToInt(op));
         var res = ch.ins.items.len;
         try ch.ins.append(0xff);
         try ch.ins.append(0xff);
@@ -146,8 +162,8 @@ pub const Chunk = struct {
         }
         //@byteSwap(T, n) marked in case byte order changes
         var bts = std.mem.toBytes(@intCast(u16, jump));
-        ch.items[from] = bts[1];
-        ch.items[from + 1] = bts[0];
+        ch.ins.items[from] = bts[1];
+        ch.ins.items[from + 1] = bts[0];
     }
 };
 

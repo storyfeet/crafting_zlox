@@ -12,6 +12,10 @@ pub const ByteIter = struct {
         };
     }
 
+    pub fn goto(self: *@This(), n: usize) void {
+        self.n = n;
+    }
+
     pub fn readN(self: *@This(), comptime T: type) T {
         const res = @ptrCast(*align(1) T, &self.list[self.n]);
         self.n += @sizeOf(T);

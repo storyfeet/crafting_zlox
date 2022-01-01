@@ -1,0 +1,8 @@
+var x = 5;
+if (x < 7) {
+    print "Smaller";
+    x = x+7;
+}else print "Bigger";
+print x;
+
+

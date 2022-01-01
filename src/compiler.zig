@@ -28,11 +28,13 @@ const ParseError = error{
     ExpectedSemicolon,
     ExpectedEquals,
     ExpectedIdent,
+    ExpectedParen,
     OutOfMemory,
     TooManyLocalVariables,
     TooManyCompileErrors,
     LocalAlreadyExists,
     CannotSetConst,
+    JumpTooBig,
 } || scanner.ScanError;
 
 pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
@@ -227,6 +229,15 @@ const Parser = struct {
         }
     }
 
+    pub fn tryConsume(self: *@This(), tk: TokenType) bool {
+        var nt = self.peekToken() catch |_| return false;
+        if (nt.kind == tk) {
+            self.peek = null;
+            return true;
+        }
+        return false;
+    }
+
     pub fn program(self: *@This()) ParseError!void {
         var curr = try self.peekToken();
         while (curr.kind != .EOF) {
@@ -271,6 +282,9 @@ const Parser = struct {
                 try self.block();
                 var pops = self.scope.decDepth();
                 while (pops < 0) : (pops -= 1) self.chk.addOp(.POP);
+            },
+            .IF => {
+                try self.ifStatement();
             },
             else => {
                 self.peek = curr;
@@ -326,6 +340,22 @@ const Parser = struct {
             return;
         }
         try self.chk.addConst(.DEFINE_GLOBAL, tval);
+    }
+
+    pub fn ifStatement(self: *@This()) ParseError!void {
+        try self.consume(.LEFT_PAREN, error.ExpectedParen);
+        try self.expression();
+        try self.consume(.RIGHT_PAREN, error.ExpectedParen);
+        var thenJump = try self.chk.addJump(.JUMP_IF_FALSE);
+        try self.chk.addOp(.POP);
+        try self.statement();
+        var elseJump = try self.chk.addJump(.JUMP);
+        try self.chk.patchJump(thenJump);
+        if (self.tryConsume(.ELSE)) {
+            try self.chk.addOp(.POP);
+            try self.statement();
+        }
+        try self.chk.patchJump(elseJump);
     }
 
     pub fn expression(self: *@This()) ParseError!void {

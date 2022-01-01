@@ -22,7 +22,7 @@ pub const Value = union(ValueType) {
             .BOOL => |b| b,
             .NUMBER => |n| n != 0,
             .NIL => false,
-            .OBJ => false,
+            .OBJ => true,
         };
     }
 
