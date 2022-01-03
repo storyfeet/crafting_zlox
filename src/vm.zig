@@ -32,16 +32,16 @@ pub const VM = struct {
     chunki: chunk.ChunkIter,
     stack: std.ArrayList(Value),
     freelist: DropList(*Obj),
-    alloc: *std.mem.Allocator,
+    alloc: std.mem.Allocator,
     globals: VarMap,
-    pub fn init(ch: *chunk.Chunk, alloc: *std.mem.Allocator) VM {
+    pub fn init(ch: *chunk.Chunk, alloc: std.mem.Allocator) VM {
         return VM{
             .chunki = chunk.ChunkIter.init(ch),
             .ip = 0,
-            .stack = std.ArrayList(Value).init(alloc.*),
+            .stack = std.ArrayList(Value).init(alloc),
             .alloc = alloc,
             .freelist = DropList(*Obj).init(alloc),
-            .globals = VarMap.init(alloc.*),
+            .globals = VarMap.init(alloc),
         };
     }
 

@@ -73,11 +73,11 @@ pub const Chunk = struct {
     ins: std.ArrayList(u8),
     lines: std.ArrayList(u8),
 
-    pub fn init(alloc: *std.mem.Allocator) Chunk {
+    pub fn init(alloc: std.mem.Allocator) Chunk {
         return Chunk{
-            .consts = std.ArrayList(Value).init(alloc.*),
-            .ins = std.ArrayList(u8).init(alloc.*),
-            .lines = std.ArrayList(u8).init(alloc.*),
+            .consts = std.ArrayList(Value).init(alloc),
+            .ins = std.ArrayList(u8).init(alloc),
+            .lines = std.ArrayList(u8).init(alloc),
         };
     }
 
@@ -137,7 +137,7 @@ pub const Chunk = struct {
         try ch.ins.append(@enumToInt(od));
     }
 
-    pub fn deinit(ch: Chunk, alloc: *std.mem.Allocator) void {
+    pub fn deinit(ch: Chunk, alloc: std.mem.Allocator) void {
         for (ch.consts.items) |c| {
             c.deinit(alloc);
         }

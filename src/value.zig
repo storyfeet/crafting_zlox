@@ -26,7 +26,7 @@ pub const Value = union(ValueType) {
         };
     }
 
-    pub fn fromStr(s_orig: []const u8, alloc: *std.mem.Allocator) !@This() {
+    pub fn fromStr(s_orig: []const u8, alloc: std.mem.Allocator) !@This() {
         const s_copy: []u8 = try alloc.alloc(u8, s_orig.len);
         std.mem.copy(u8, s_copy, s_orig);
         const ob = try alloc.create(Obj);
@@ -34,7 +34,7 @@ pub const Value = union(ValueType) {
         return Value{ .OBJ = ob };
     }
 
-    pub fn deinit(this: @This(), alloc: *std.mem.Allocator) void {
+    pub fn deinit(this: @This(), alloc: std.mem.Allocator) void {
         switch (this) {
             .OBJ => |v| v.deinit(alloc),
             else => {},
@@ -130,7 +130,7 @@ pub const Obj = struct {
         }
     }
 
-    pub fn deinit(this: *@This(), alloc: *std.mem.Allocator) void {
+    pub fn deinit(this: *@This(), alloc: std.mem.Allocator) void {
         this.data.deinit(alloc);
         alloc.destroy(this);
     }
@@ -139,14 +139,14 @@ pub const Obj = struct {
 pub const ObjData = union(ObjType) {
     STR: []u8,
 
-    fn deinit(this: @This(), alloc: *std.mem.Allocator) void {
+    fn deinit(this: @This(), alloc: std.mem.Allocator) void {
         switch (this) {
             .STR => |s| alloc.free(s),
         }
     }
 };
 
-pub fn concatStr(a: []const u8, b: []const u8, alloc: *std.mem.Allocator) ![]u8 {
+pub fn concatStr(a: []const u8, b: []const u8, alloc: std.mem.Allocator) ![]u8 {
     var new_len = a.len + b.len;
     var res: []u8 = try alloc.alloc(u8, new_len);
     std.mem.copy(u8, res[0..], a);

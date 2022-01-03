@@ -21,7 +21,7 @@ pub fn main() !void {
             defer alloc.free(s);
             std.debug.print("Processing file : {s}\n\n\n", .{s});
             const fstr = try scanner.readFile(s, &alloc);
-            try compiler.compileAndRunProgram(fstr, &alloc);
+            try compiler.compileAndRunProgram(fstr, alloc);
         } else |err| {
             return err;
         }

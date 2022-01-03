@@ -37,7 +37,7 @@ const ParseError = error{
     JumpTooBig,
 } || scanner.ScanError;
 
-pub fn compileAndRunProgram(s: []const u8, a: *std.mem.Allocator) !void {
+pub fn compileAndRunProgram(s: []const u8, a: std.mem.Allocator) !void {
     var ch = chunk.Chunk.init(a);
     defer ch.deinit(a);
     var p: Parser = try Parser.init(s, a, &ch);
@@ -87,7 +87,7 @@ const Scope = struct {
     locals: LList,
     depth: usize,
 
-    pub fn init(alloc: *std.mem.Allocator) !*@This() {
+    pub fn init(alloc: std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
         res.locals = LList{};
         res.prev = null;
@@ -95,7 +95,7 @@ const Scope = struct {
         return res;
     }
 
-    pub fn parent(self: *@This(), alloc: *std.mem.Allocator) ?*@This() {
+    pub fn parent(self: *@This(), alloc: std.mem.Allocator) ?*@This() {
         var p = self.prev;
         alloc.destory(self);
         return p;
@@ -105,13 +105,13 @@ const Scope = struct {
         self.depth += 1;
     }
 
-    pub fn addLocal(self: *@This(), alloc: *std.mem.Allocator, name: []const u8, isConst: bool) ParseError!void {
+    pub fn addLocal(self: *@This(), alloc: std.mem.Allocator, name: []const u8, isConst: bool) ParseError!void {
         var loc = Local{
             .name = name,
             .depth = null,
             .isConst = isConst,
         };
-        try self.locals.append(alloc.*, loc);
+        try self.locals.append(alloc, loc);
     }
 
     pub fn decDepth(self: *@This()) u8 {
@@ -132,11 +132,11 @@ const Scope = struct {
         self.locals.items[self.locals.items.len - 1].depth = self.depth;
     }
 
-    pub fn deinit(self: *@This(), alloc: *std.mem.Allocator) void {
+    pub fn deinit(self: *@This(), alloc: std.mem.Allocator) void {
         if (self.prev) |p| {
             p.deinit(alloc);
         }
-        self.locals.deinit(alloc.*);
+        self.locals.deinit(alloc);
         alloc.destroy(self);
     }
 
@@ -174,7 +174,7 @@ const Parser = struct {
     peek: ?Token,
     scanner: scanner.Tokenizer,
     chk: *chunk.Chunk,
-    alloc: *std.mem.Allocator,
+    alloc: std.mem.Allocator,
     errors: std.ArrayList(ParseErrorData),
     scope: *Scope,
 
@@ -188,14 +188,14 @@ const Parser = struct {
         return e;
     }
 
-    pub fn init(s: []const u8, alloc: *std.mem.Allocator, ch: *chunk.Chunk) !@This() {
+    pub fn init(s: []const u8, alloc: std.mem.Allocator, ch: *chunk.Chunk) !@This() {
         var sc = scanner.Tokenizer.init(s);
         return Parser{
             .peek = null,
             .scanner = sc,
             .chk = ch,
             .alloc = alloc,
-            .errors = std.ArrayList(ParseErrorData).init(alloc.*),
+            .errors = std.ArrayList(ParseErrorData).init(alloc),
             .scope = try Scope.init(alloc),
         };
     }
