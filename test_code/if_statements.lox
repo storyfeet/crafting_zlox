@@ -1,8 +1,15 @@
 var x = 5;
-if (x < 7) {
+var y = 10;
+if (x < 7 and x > 3) {
     print "Smaller";
     x = x+7;
 }else print "Bigger";
+
+if (x<y or y > 5){
+    print "y bigger than something";
+}
+
 print x;
+
 
 

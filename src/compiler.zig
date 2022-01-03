@@ -484,6 +484,24 @@ const Parser = struct {
             } else try self.chk.addConst(.GET_GLOBAL, val);
         }
     }
+
+    pub fn and_(self: *@This(), _: bool) ParseError!void {
+        self.peek = null;
+        var off = try self.chk.addJump(.JUMP_IF_FALSE);
+        try self.chk.addOp(.POP);
+        try self.parsePrecedence(.AND);
+        try self.chk.patchJump(off);
+    }
+
+    pub fn or_(self: *@This(), _: bool) ParseError!void {
+        self.peek = null;
+        var fhop = try self.chk.addJump(.JUMP_IF_FALSE);
+        var true_jump = try self.chk.addJump(.JUMP);
+        try self.chk.patchJump(fhop);
+        try self.chk.addOp(.POP);
+        try self.parsePrecedence(.OR);
+        try self.chk.patchJump(true_jump);
+    }
 };
 
 const Precedence = enum(u8) {
@@ -525,7 +543,8 @@ fn getRule(tk: TokenType) ParseRule {
         .EQUAL_EQUAL => .{ .infix = Parser.binary, .precedence = .EQUALITY },
         .STRING => .{ .prefix = Parser.string },
         .IDENT => .{ .prefix = Parser.variable },
-        //.AND => .{ .infix = Parser.and_, .precendence = .AND },
+        .AND => .{ .infix = Parser.and_, .precedence = .AND },
+        .OR => .{ .infix = Parser.or_, .precedence = .OR },
         else => .{},
     };
 }
