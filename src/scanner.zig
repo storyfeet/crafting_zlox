@@ -11,16 +11,55 @@ pub fn readFile(path: []const u8, alloc: *std.mem.Allocator) ![]u8 {
     const f: fs.File = try fs.cwd().openFile(path, .{ .read = true });
     defer f.close();
 
-    return try f.readToEndAlloc(alloc, 1_000_000);
+    return try f.readToEndAlloc(alloc.*, 1_000_000);
 }
 
-pub const TokenType = enum { LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, COMMA, DOT, MINUS, PLUS, SEMICOLON, SLASH, STAR,
-// One or two character tokens.
-BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
-// Literals.
-IDENT, STRING, NUMBER,
-// Keywords.
-AND, CLASS, ELSE, FALSE, FOR, FUN, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR, CONST, WHILE, ERROR, EOF };
+pub const TokenType = enum {
+    LEFT_PAREN,
+    RIGHT_PAREN,
+    LEFT_BRACE,
+    RIGHT_BRACE,
+    COMMA,
+    DOT,
+    MINUS,
+    PLUS,
+    SEMICOLON,
+    SLASH,
+    STAR,
+    // One or two character tokens.
+    BANG,
+    BANG_EQUAL,
+    EQUAL,
+    EQUAL_EQUAL,
+    GREATER,
+    GREATER_EQUAL,
+    LESS,
+    LESS_EQUAL,
+    // Literals.
+    IDENT,
+    STRING,
+    NUMBER,
+    // Keywords.
+    AND,
+    CLASS,
+    ELSE,
+    FALSE,
+    FOR,
+    FUN,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    SUPER,
+    THIS,
+    TRUE,
+    VAR,
+    CONST,
+    WHILE,
+    ERROR,
+    EOF,
+};
 
 pub const Token = struct {
     kind: TokenType,
@@ -154,7 +193,7 @@ pub const Tokenizer = struct {
         while (true) {
             const pk = self.uts.peek(1);
             if (pk.len == 0) return self.makeToken(TokenType.NUMBER);
-            const c = std.unicode.utf8Decode(pk) catch |_| return error.NonUnicode;
+            const c = std.unicode.utf8Decode(pk) catch return error.NonUnicode;
             if (isDigit(c)) {
                 _ = self.uts.nextCodepoint();
                 continue;

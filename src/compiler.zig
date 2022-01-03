@@ -111,7 +111,7 @@ const Scope = struct {
             .depth = null,
             .isConst = isConst,
         };
-        try self.locals.append(alloc, loc);
+        try self.locals.append(alloc.*, loc);
     }
 
     pub fn decDepth(self: *@This()) u8 {
@@ -136,7 +136,7 @@ const Scope = struct {
         if (self.prev) |p| {
             p.deinit(alloc);
         }
-        self.locals.deinit(alloc);
+        self.locals.deinit(alloc.*);
         alloc.destroy(self);
     }
 
@@ -195,7 +195,7 @@ const Parser = struct {
             .scanner = sc,
             .chk = ch,
             .alloc = alloc,
-            .errors = std.ArrayList(ParseErrorData).init(alloc),
+            .errors = std.ArrayList(ParseErrorData).init(alloc.*),
             .scope = try Scope.init(alloc),
         };
     }
@@ -230,7 +230,7 @@ const Parser = struct {
     }
 
     pub fn tryConsume(self: *@This(), tk: TokenType) bool {
-        var nt = self.peekToken() catch |_| return false;
+        var nt = self.peekToken() catch return false;
         if (nt.kind == tk) {
             self.peek = null;
             return true;
@@ -241,7 +241,7 @@ const Parser = struct {
     pub fn program(self: *@This()) ParseError!void {
         var curr = try self.peekToken();
         while (curr.kind != .EOF) {
-            self.declaration() catch |e| {
+            self.declaration() catch {
                 try self.endErrLine();
             };
             curr = try self.peekToken();
@@ -392,7 +392,7 @@ const Parser = struct {
         }
     }
 
-    pub fn literal(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn literal(self: *@This(), _: bool) ParseError!void {
         var curr = try self.takeToken();
         switch (curr.kind) {
             .FALSE => try self.chk.addOp(.FALSE),
@@ -402,13 +402,13 @@ const Parser = struct {
         }
     }
 
-    pub fn grouping(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn grouping(self: *@This(), _: bool) ParseError!void {
         self.peek = null;
         try self.expression();
         try self.consume(.RIGHT_PAREN, error.ExpectedRightParen);
     }
 
-    pub fn unary(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn unary(self: *@This(), _: bool) ParseError!void {
         const op = try self.takeToken();
         try self.expression();
         switch (op.kind) {
@@ -418,7 +418,7 @@ const Parser = struct {
         }
     }
 
-    pub fn binary(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn binary(self: *@This(), _: bool) ParseError!void {
         const op = try self.takeToken();
         const rule = getRule(op.kind);
         try self.parsePrecedence(rule.precedence.inc());
@@ -446,14 +446,14 @@ const Parser = struct {
         }
     }
 
-    pub fn number(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn number(self: *@This(), _: bool) ParseError!void {
         var curr = try self.takeToken();
         var s = self.scanner.tokenStr(curr);
         var val = try std.fmt.parseFloat(f64, s);
         try self.chk.addConst(.CONSTANT, .{ .NUMBER = val });
     }
 
-    pub fn string(self: *@This(), canAssign: bool) ParseError!void {
+    pub fn string(self: *@This(), _: bool) ParseError!void {
         var curr = try self.takeToken();
         var s_orig = self.scanner.tokenStr(curr);
         //remove quotes
@@ -525,6 +525,7 @@ fn getRule(tk: TokenType) ParseRule {
         .EQUAL_EQUAL => .{ .infix = Parser.binary, .precedence = .EQUALITY },
         .STRING => .{ .prefix = Parser.string },
         .IDENT => .{ .prefix = Parser.variable },
+        //.AND => .{ .infix = Parser.and_, .precendence = .AND },
         else => .{},
     };
 }

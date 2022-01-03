@@ -14,8 +14,8 @@ pub fn DropList(comptime T: type) type {
 
         pub fn init(alloc: *std.mem.Allocator) @This() {
             return .{
-                .data = ArrayList(?T).init(alloc),
-                .drops = ArrayList(usize).init(alloc),
+                .data = ArrayList(?T).init(alloc.*),
+                .drops = ArrayList(usize).init(alloc.*),
                 .len = 0,
             };
         }
@@ -70,7 +70,7 @@ pub fn DropList(comptime T: type) type {
         pub fn iter(this: *@This()) DropListIter(T) {
             return DropListIter(T){ .dl = this, .n = 0 };
         }
-        pub fn noDestroy(_: T, _b: *std.mem.Allocator) void {}
+        pub fn noDestroy(_: T, _: *std.mem.Allocator) void {}
     };
 }
 

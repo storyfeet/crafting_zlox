@@ -75,9 +75,9 @@ pub const Chunk = struct {
 
     pub fn init(alloc: *std.mem.Allocator) Chunk {
         return Chunk{
-            .consts = std.ArrayList(Value).init(alloc),
-            .ins = std.ArrayList(u8).init(alloc),
-            .lines = std.ArrayList(u8).init(alloc),
+            .consts = std.ArrayList(Value).init(alloc.*),
+            .ins = std.ArrayList(u8).init(alloc.*),
+            .lines = std.ArrayList(u8).init(alloc.*),
         };
     }
 

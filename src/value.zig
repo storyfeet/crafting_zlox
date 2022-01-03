@@ -120,7 +120,7 @@ pub const Obj = struct {
         return @ptrToInt(a) == @ptrToInt(b);
     }
 
-    pub fn greater(a: *@This(), b: *@This()) !bool {
+    pub fn greater(_: *@This(), _: *@This()) !bool {
         return false; //TODO
     }
 

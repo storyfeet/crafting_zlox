@@ -38,10 +38,10 @@ pub const VM = struct {
         return VM{
             .chunki = chunk.ChunkIter.init(ch),
             .ip = 0,
-            .stack = std.ArrayList(Value).init(alloc),
+            .stack = std.ArrayList(Value).init(alloc.*),
             .alloc = alloc,
             .freelist = DropList(*Obj).init(alloc),
-            .globals = VarMap.init(alloc),
+            .globals = VarMap.init(alloc.*),
         };
     }
 

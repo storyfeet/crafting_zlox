@@ -9,7 +9,7 @@ const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn main() !void {
     var gpa = GPAlloc{};
-    var alloc = &gpa.allocator;
+    var alloc = gpa.allocator();
 
     var argIter = std.process.args();
     _ = argIter.skip();
@@ -20,8 +20,8 @@ pub fn main() !void {
         if (ae) |s| {
             defer alloc.free(s);
             std.debug.print("Processing file : {s}\n\n\n", .{s});
-            const fstr = try scanner.readFile(s, alloc);
-            try compiler.compileAndRunProgram(fstr, alloc);
+            const fstr = try scanner.readFile(s, &alloc);
+            try compiler.compileAndRunProgram(fstr, &alloc);
         } else |err| {
             return err;
         }
