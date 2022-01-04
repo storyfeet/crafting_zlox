@@ -35,7 +35,7 @@ const ParseError = error{
     LocalAlreadyExists,
     CannotSetConst,
     JumpTooBig,
-} || scanner.ScanError;
+} || scanner.ScanError || chunk.ChunkError;
 
 pub fn compileAndRunProgram(s: []const u8, a: std.mem.Allocator) !void {
     var ch = chunk.Chunk.init(a);
@@ -286,6 +286,9 @@ const Parser = struct {
             .IF => {
                 try self.ifStatement();
             },
+            .WHILE => {
+                try self.whileStatement();
+            },
             else => {
                 self.peek = curr;
                 try self.expressionStatement();
@@ -356,6 +359,21 @@ const Parser = struct {
             try self.statement();
         }
         try self.chk.patchJump(elseJump);
+    }
+
+    pub fn whileStatement(self: *@This()) ParseError!void {
+        var pos = self.chk.pos();
+        self.peek = null;
+        try self.consume(.LEFT_PAREN, error.ExpectedParen);
+        try self.expression();
+        try self.consume(.RIGHT_PAREN, error.ExpectedParen);
+        const exit = try self.chk.addJump(.JUMP_IF_FALSE);
+
+        try self.statement();
+        try self.chk.addLoop(pos);
+
+        try self.chk.patchJump(exit);
+        try self.chk.addOp(.POP);
     }
 
     pub fn expression(self: *@This()) ParseError!void {

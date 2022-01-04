@@ -6,6 +6,11 @@ const Value = value.Value;
 
 pub const uSlot = u16;
 
+pub const ChunkError = error{
+    LoopCannotGoBackThatFar,
+    LoopCannotGoForward,
+};
+
 pub const OpCode = enum(u8) {
     RETURN,
     EXIT,
@@ -31,6 +36,7 @@ pub const OpCode = enum(u8) {
     SET_LOCAL,
     JUMP,
     JUMP_IF_FALSE,
+    LOOP,
 };
 
 pub const ChunkIter = struct {
@@ -43,6 +49,10 @@ pub const ChunkIter = struct {
         };
     }
 
+    pub fn loop(self: *@This(), n: u16) !void {
+        if (self.ins.n < n) return error.JumpOutOfBound;
+        self.ins.n -= @intCast(usize, n);
+    }
     pub fn jump(self: *@This(), n: u16) !void {
         self.ins.n += @intCast(usize, n);
         if (self.ins.n >= self.chunk.ins.items.len) {
@@ -81,6 +91,10 @@ pub const Chunk = struct {
         };
     }
 
+    pub fn pos(ch: *Chunk) usize {
+        return ch.ins.items.len;
+    }
+
     pub fn print(ch: *Chunk, w: anytype) void {
         var it = ChunkIter.init(ch);
         while (it.readOp()) |op| {
@@ -95,7 +109,7 @@ pub const Chunk = struct {
                     try c.printTo(w);
                     w.print("\n", .{});
                 },
-                .JUMP, .JUMP_IF_FALSE => {
+                .JUMP, .JUMP_IF_FALSE, .LOOP => {
                     var target = it.readJump();
                     w.print("{} : {}\n", .{ op, target });
                 },
@@ -112,12 +126,12 @@ pub const Chunk = struct {
                 break;
             }
         }
-        var pos: u16 = @intCast(u16, found orelse ch.consts.items.len);
+        var cpos: u16 = @intCast(u16, found orelse ch.consts.items.len);
         if (found == null) {
             try ch.consts.append(v);
         }
         try ch.ins.append(@enumToInt(op));
-        try ch.addNumBytes(u16, pos);
+        try ch.addNumBytes(u16, cpos);
     }
 
     pub fn addNumBytes(ch: *Chunk, comptime T: type, n: T) !void {
@@ -146,6 +160,14 @@ pub const Chunk = struct {
         ch.lines.deinit();
     }
 
+    pub fn addLoop(ch: *Chunk, rpos: usize) !void {
+        try ch.ins.append(@enumToInt(OpCode.LOOP));
+        var cpos = ch.pos();
+        if (rpos > cpos) return error.LoopCannotGoForward;
+        var target = cpos + 2 - rpos;
+        if (target >= 256 * 256) return error.LoopCannotGoBackThatFar;
+        try ch.addNumBytes(u16, @intCast(u16, target));
+    }
     pub fn addJump(ch: *Chunk, op: OpCode) !usize {
         try ch.ins.append(@enumToInt(op));
         var res = ch.ins.items.len;

@@ -1,0 +1,8 @@
+var x = 7;
+while (x < 20){
+    x = x+1;
+    print x;
+    if (x > 11) {
+        print "X is bigger";
+    }
+}

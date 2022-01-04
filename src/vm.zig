@@ -25,7 +25,7 @@ pub const VMError = error{
     JumpOutOfBound,
     OutOfMemory,
     NegatingObject,
-} || value.ValueError;
+} || value.ValueError || chunk.ChunkError;
 
 pub const VM = struct {
     ip: usize,
@@ -153,6 +153,10 @@ pub const VM = struct {
                     if (!self.peekStack().as_bool()) {
                         try self.chunki.jump(target);
                     }
+                },
+                .LOOP => {
+                    var target = self.chunki.readJump();
+                    try self.chunki.loop(target);
                 },
             }
         }
