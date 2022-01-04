@@ -113,9 +113,13 @@ pub const Chunk = struct {
                     try c.printTo(w);
                     w.print("\n", .{});
                 },
-                .JUMP, .JUMP_IF_FALSE, .LOOP => {
+                .JUMP, .JUMP_IF_FALSE => {
                     var target = it.readJump();
-                    w.print("{} {} : {}\n", .{ ipos, op, target });
+                    w.print("{} {} : {} => {}\n", .{ ipos, op, target, it.pos() + target });
+                },
+                .LOOP => {
+                    var target = it.readJump();
+                    w.print("{} {} : {} => {}\n", .{ ipos, op, target, it.pos() - target });
                 },
                 else => w.print("{} {}\n", .{ ipos, op }),
             }
