@@ -76,6 +76,9 @@ pub const ChunkIter = struct {
     pub fn readJump(self: *@This()) u16 {
         return self.ins.readN(uSlot);
     }
+    pub fn pos(self: *@This()) usize {
+        return self.ins.n;
+    }
 };
 
 pub const Chunk = struct {
@@ -97,24 +100,26 @@ pub const Chunk = struct {
 
     pub fn print(ch: *Chunk, w: anytype) void {
         var it = ChunkIter.init(ch);
+        var ipos: usize = 0;
         while (it.readOp()) |op| {
             switch (op) {
                 .SET_LOCAL, .GET_LOCAL => {
                     var slot = it.readSlot();
-                    w.print("{} : {}\n", .{ op, slot });
+                    w.print("{} {} : {}\n", .{ ipos, op, slot });
                 },
                 .SET_GLOBAL, .GET_GLOBAL, .CONSTANT, .DEFINE_GLOBAL => {
-                    w.print("{} :", .{op});
+                    w.print("{} {} :", .{ ipos, op });
                     const c = it.readConst();
                     try c.printTo(w);
                     w.print("\n", .{});
                 },
                 .JUMP, .JUMP_IF_FALSE, .LOOP => {
                     var target = it.readJump();
-                    w.print("{} : {}\n", .{ op, target });
+                    w.print("{} {} : {}\n", .{ ipos, op, target });
                 },
-                else => w.print("{}\n", .{op}),
+                else => w.print("{} {}\n", .{ ipos, op }),
             }
+            ipos = it.pos();
         }
     }
 

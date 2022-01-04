@@ -1,6 +1,7 @@
 const scanner = @import("scanner.zig");
 const chunk = @import("chunk.zig");
 const value = @import("value.zig");
+const config = @import("config.zig");
 const std = @import("std");
 const GPAlloc = std.heap.GeneralPurposeAllocator(.{});
 const Token = scanner.Token;
@@ -44,7 +45,8 @@ pub fn compileAndRunProgram(s: []const u8, a: std.mem.Allocator) !void {
     defer p.deinit();
     try p.program();
     try ch.addOp(.EXIT);
-    ch.print(std.debug);
+    if (config.PRINT_CHUNK) ch.print(std.debug);
+
     var theVm = vm.VM.init(&ch, a);
     defer theVm.deinit();
     _ = try theVm.run();
@@ -289,6 +291,9 @@ const Parser = struct {
             .WHILE => {
                 try self.whileStatement();
             },
+            .FOR => {
+                try self.forStatement();
+            },
             else => {
                 self.peek = curr;
                 try self.expressionStatement();
@@ -374,6 +379,60 @@ const Parser = struct {
 
         try self.chk.patchJump(exit);
         try self.chk.addOp(.POP);
+    }
+
+    pub fn forStatement(self: *@This()) ParseError!void {
+        self.peek = null;
+        self.scope.incDepth();
+
+        try self.consume(.LEFT_PAREN, error.ExpectedParen);
+
+        //Initialize
+        var pk = try self.peekToken();
+        if (pk.kind == .SEMICOLON) {
+            self.peek = null;
+        } else {
+            try self.declaration();
+        }
+
+        //Condition
+        var conLoop = self.chk.pos();
+        pk = try self.peekToken();
+        if (pk.kind == .SEMICOLON) {
+            try self.chk.addOp(.TRUE);
+        } else {
+            try self.expression();
+            try self.consume(.SEMICOLON, error.ExpectedSemicolon);
+        }
+
+        var quitJump = try self.chk.addJump(.JUMP_IF_FALSE);
+
+        //std.debug.print("CONDITION COMPLETE {}\n", .{self.peekToken()});
+        //Increment
+        var incLoop = self.chk.pos();
+        pk = try self.peekToken();
+        if (pk.kind == .RIGHT_PAREN) {
+            incLoop = conLoop;
+            self.peek = null;
+        } else {
+            const incJump = try self.chk.addJump(.JUMP);
+            incLoop = self.chk.pos();
+            try self.expression();
+            try self.chk.addOp(.POP);
+            //std.debug.print("INC EXPRESSION COMPLETE \n", .{});
+            try self.consume(.RIGHT_PAREN, error.ExpectedParen);
+            //std.debug.print("INC PAREN COMPLETE\n", .{});
+            try self.chk.addLoop(conLoop);
+            try self.chk.patchJump(incJump);
+        }
+        try self.statement();
+        try self.chk.addLoop(incLoop);
+
+        //std.debug.print("INCREMENT COMPLETE\n", .{});
+        try self.chk.patchJump(quitJump);
+        //exit
+        var pops = self.scope.decDepth();
+        while (pops < 0) : (pops -= 1) self.chk.addOp(.POP);
     }
 
     pub fn expression(self: *@This()) ParseError!void {

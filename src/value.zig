@@ -121,7 +121,8 @@ pub const Obj = struct {
     }
 
     pub fn greater(_: *@This(), _: *@This()) !bool {
-        return false; //TODO
+        @panic("Greater not implemented");
+        //return false; //TODO
     }
 
     pub fn printTo(this: *@This(), writer: anytype) !void {
