@@ -9,6 +9,7 @@ pub const uSlot = u16;
 pub const ChunkError = error{
     LoopCannotGoBackThatFar,
     LoopCannotGoForward,
+    JumpTooBig,
 };
 
 pub const OpCode = enum(u8) {
