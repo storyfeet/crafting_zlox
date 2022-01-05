@@ -12,6 +12,12 @@ const Local = struct {
     isConst: bool,
 };
 
+const Label = struct {
+    name: []const u8,
+    depth: usize,
+    target: ?usize,
+};
+
 const FoundLocal = struct {
     slot: uSlot,
     isC: bool,
@@ -20,11 +26,13 @@ pub const Scope = struct {
     const LList = std.ArrayListUnmanaged(Local);
     prev: ?*Scope,
     locals: LList,
+    labels: std.ArrayListUnmanaged(Label),
     depth: usize,
 
     pub fn init(alloc: std.mem.Allocator) !*@This() {
         var res: *Scope = try alloc.create(Scope);
         res.locals = LList{};
+        res.Labels = std.ArrayListUnmanged(Label){};
         res.prev = null;
         res.depth = 0;
         return res;
@@ -38,6 +46,31 @@ pub const Scope = struct {
 
     pub fn incDepth(self: *@This()) void {
         self.depth += 1;
+    }
+
+    pub fn addNamedLabel(self: *@This(), alloc: std.mem.Allocator, name: []const u8) ScopeError!void {
+        const lab = Label{
+            .name = name,
+            .depth = self.depth,
+            .target = null,
+        };
+        try self.labels.append(alloc, lab);
+    }
+    pub fn addLoopLabel(self: *@This(), alloc: std.mem.Allocator, target: usize) ScopeError!void {
+        var ls = self.labels.items;
+        if (ls.len > 0) {
+            var item = ls.items[ls.len - 1];
+            if (item.target == null) {
+                item.target = target;
+                return null;
+            }
+        }
+        const lab = Label{
+            .name = "",
+            .depth = self.depth,
+            .target = target,
+        };
+        try self.labels.append(alloc, lab);
     }
 
     pub fn addLocal(self: *@This(), alloc: std.mem.Allocator, name: []const u8, isConst: bool) ScopeError!void {
